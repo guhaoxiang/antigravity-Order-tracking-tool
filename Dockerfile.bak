@@ -1,0 +1,32 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# 複製 package 檔案（利用 Docker 快取層）
+COPY scheduler-web-demo/package.json scheduler-web-demo/package-lock.json ./scheduler-web-demo/
+COPY slot-monitor/package.json slot-monitor/package-lock.json ./slot-monitor/
+
+# 安裝依賴
+RUN cd scheduler-web-demo && npm ci --omit=dev \
+ && cd ../slot-monitor && npm ci --omit=dev
+
+# 複製程式碼
+COPY scheduler-web-demo/ ./scheduler-web-demo/
+COPY slot-monitor/ ./slot-monitor/
+COPY zemo-api/libs/ ./zemo-api/libs/
+COPY zemo-api/constants/ ./zemo-api/constants/
+COPY zemo-api/shared/ ./zemo-api/shared/
+COPY zemo-api/package.json ./zemo-api/
+
+# 安裝 zemo-api 所需的最小依賴
+RUN cd zemo-api && npm install bunyan moment-timezone lodash --no-save 2>/dev/null || true
+
+# 全域逾時保護（5 分鐘強制結束，避免卡住）
+ENV PROCESS_TIMEOUT_MS=300000
+# 預設執行 slot-monitor
+ENV NODE_ENV=production
+
+# Cloud Run 需要一個 HTTP 端口（用於健康檢查）
+EXPOSE 8080
+
+CMD ["node", "slot-monitor/index.js"]

@@ -1,0 +1,49 @@
+# Cloud Run 部署時排除的檔案
+# 注意：zemo-api/ 不能排除，執行時需要
+
+.git/
+.github/
+.claude/
+.vscode/
+.idea/
+
+# 環境變數（Cloud Run 用環境變數注入，不需要檔案）
+.env
+.env.local
+.env.*.local
+
+# 各子目錄的 node_modules（Cloud Build 會重新 npm install）
+node_modules/
+scheduler-web-demo/node_modules/
+slot-monitor/node_modules/
+zemo-api/node_modules/
+
+# 日誌與暫存
+*.log
+debug_dump.txt
+coverage/
+
+# 文件（部署不需要）
+docs/
+CHANGELOG.md
+
+# Docker 相關（不使用 Docker 部署）
+Dockerfile
+.dockerignore
+slot-monitor/Dockerfile
+
+# 測試
+scheduler-web-demo/test/
+slot-monitor/test/
+
+# zemo-api 不需要的部分（只需要 libs/ constants/ shared/）
+zemo-api/.git/
+zemo-api/node_modules/
+zemo-api/test/
+zemo-api/routes/
+zemo-api/prisma/
+zemo-api/scripts/
+zemo-api/views/
+zemo-api/public/
+zemo-api/bin/
+zemo-api/.env

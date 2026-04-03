@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>參數設定 - Scheduler Web Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #e0f2fe 0, #f4f5f7 40%, #f4f5f7 100%);
+      margin: 0;
+      padding: 0 0 48px;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      max-width: 960px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .title-block h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.5px;
+    }
+    .title-block p {
+      margin: 3px 0 0;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    /* ── Pill nav ── */
+    .nav {
+      display: inline-flex;
+      padding: 4px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      font-size: 13px;
+      gap: 2px;
+    }
+    .nav a {
+      color: #4b5563;
+      text-decoration: none;
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .nav a:hover { background: #e5e7eb; }
+    .nav a.active {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    /* ── Toast message ── */
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #15803d;
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+    .toast::before { content: "✓"; font-size: 15px; }
+
+    /* ── Doc card (collapsible) ── */
+    .doc-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .doc-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #334155;
+      text-align: left;
+    }
+    .doc-toggle .doc-icon { font-size: 15px; margin-right: 8px; }
+    .doc-toggle .chevron {
+      font-size: 11px;
+      color: #94a3b8;
+      transition: transform 0.2s;
+    }
+    .doc-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+    .doc-body {
+      padding: 0 18px 14px;
+      display: none;
+    }
+    .doc-body.open { display: block; }
+    .doc-formula {
+      display: inline-block;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 7px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1d4ed8;
+      margin: 6px 0 10px;
+    }
+    .doc-list {
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.75;
+      margin: 0;
+      padding-left: 18px;
+    }
+    .doc-list li { margin-bottom: 6px; }
+    .doc-list code {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11.5px;
+    }
+
+    /* ── Form card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px 13px;
+      border-bottom: 1px solid #f1f5f9;
+      background: #fafbfc;
+    }
+    .card-header-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .icon-blue  { background: #eff6ff; }
+    .icon-green { background: #f0fdf4; }
+    .icon-amber { background: #fffbeb; }
+    .icon-purple{ background: #faf5ff; }
+    .icon-slate { background: #f8fafc; }
+    .card-header h2 {
+      margin: 0;
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .card-body { padding: 18px 20px; }
+
+    /* ── Field rows ── */
+    .field {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 8px 16px;
+      margin-bottom: 14px;
+    }
+    .field:last-child { margin-bottom: 0; }
+    .field-label {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #374151;
+      padding-top: 7px;
+      line-height: 1.4;
+    }
+    .field-label small {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 400;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+    .field-label code {
+      font-size: 11px;
+      color: #6366f1;
+      background: #eef2ff;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .field-input { display: flex; align-items: center; gap: 6px; }
+
+    input[type="number"],
+    input[type="text"] {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1.5px solid #d1d5db;
+      font-size: 13px;
+      color: #1f2937;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    input[type="number"] { width: 110px; }
+    input[type="text"]   { width: 240px; }
+    input[type="number"]:focus,
+    input[type="text"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+    .input-unit {
+      font-size: 12px;
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+
+    /* ── Time range group ── */
+    .time-range-group {
+      margin-bottom: 4px;
+    }
+    .trg-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .trg-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .trg-badge.rush  { background: #fee2e2; color: #b91c1c; }
+    .trg-badge.light { background: #dbeafe; color: #1d4ed8; }
+    .trg-title {
+      flex: 1;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #374151;
+    }
+    .trg-title small {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 400;
+      color: #9ca3af;
+      margin-top: 1px;
+    }
+    .trg-bonus-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .bonus-input { width: 80px; }
+    .trg-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-left: 8px;
+      border-left: 3px solid #f1f5f9;
+    }
+    .trg-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .trg-label {
+      width: 70px;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .trg-sep {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+    .trg-hint {
+      font-size: 11.5px;
+      color: #9ca3af;
+    }
+    input[type="time"] {
+      padding: 5px 8px;
+      border-radius: 8px;
+      border: 1.5px solid #d1d5db;
+      font-size: 13px;
+      color: #1f2937;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="time"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+
+    /* ── Speed band table ── */
+    .speed-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+    .speed-table thead th {
+      text-align: left;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6b7280;
+      border-bottom: 1.5px solid #e5e7eb;
+    }
+    .speed-table tbody tr:hover { background: #f9fafb; }
+    .speed-table tbody td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: middle;
+    }
+    .speed-table tbody tr:last-child td { border-bottom: none; }
+    .band-idx {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #f1f5f9;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .speed-table input[type="number"] { width: 90px; }
+
+    /* ── Toggle switch ── */
+    .toggle-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .toggle-row:first-child { padding-top: 0; }
+    .toggle-label { flex: 1; }
+    .toggle-label span {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #374151;
+      line-height: 1.4;
+    }
+    .toggle-label small {
+      display: block;
+      font-size: 11.5px;
+      color: #9ca3af;
+      margin-top: 2px;
+    }
+
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #d1d5db;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    }
+    .switch input:checked + .slider { background: #2563eb; }
+    .switch input:checked + .slider::before { transform: translateX(18px); }
+
+    /* ── Divider in card-body ── */
+    .field-divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 14px 0;
+    }
+
+    /* ── Buttons ── */
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 22px;
+      border-radius: 999px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-ghost {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .btn-ghost:hover { background: #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="title-block">
+        <h1>排程參數設定</h1>
+        <p>調整行駛時間、電量、演算法策略等模擬參數</p>
+      </div>
+      <nav class="nav">
+        <a href="/schedule">自動排程</a>
+        <a href="/settings" class="active">參數設定</a>
+      </nav>
+    </div>
+
+    <!-- Toast -->
+    <% if (message) { %>
+      <div class="toast"><%= message %></div>
+    <% } %>
+
+    <!-- Doc: 行駛時間 -->
+    <div class="doc-card">
+      <button class="doc-toggle" type="button" aria-expanded="false" onclick="toggleDoc(this)">
+        <span><span class="doc-icon">🚗</span>行駛時間計算說明</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="doc-body">
+        <p style="margin:0 0 6px;font-size:13px;color:#475569;">點對點「行駛時間」（秒）由 zemo-api geo 模組計算：</p>
+        <div class="doc-formula">行駛時間 = 基礎時間 + 尖峰／離峰加成（秒）+ 區域加成（秒）</div>
+        <ul class="doc-list">
+          <li><strong>基礎時間</strong>：<code>距離(km) × 3600 ÷ 推定時速(km/h)</code>，推定時速依直線距離分段取定。</li>
+          <li><strong>尖峰／離峰加成</strong>：依出發時刻所在時段，加入或減去固定分鐘數（可在下方參數調整）。</li>
+          <li><strong>區域加成</strong>：若起點或終點位於淡水、南港／內湖、林口、宜蘭等特定區域，再加對應分鐘數。</li>
+          <li><strong>額外消耗時間</strong>：行程明細中的「額外消耗時間」即為尖峰／離峰與區域加成之合計。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Doc: 充電 -->
+    <div class="doc-card" style="margin-bottom:24px;">
+      <button class="doc-toggle" type="button" aria-expanded="false" onclick="toggleDoc(this)">
+        <span><span class="doc-icon">⚡</span>充電時間推算說明</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="doc-body">
+        <ul class="doc-list">
+          <li>兩趟行程間的空檔（idle time）≥ <code>minimumIdleTimeToChargeSeconds</code> 時，才會考慮插入充電。</li>
+          <li>空檔 = 下一趟預約時間 − 前一趟結束時間 − 前趟終點至下一趟起點的行駛時間。</li>
+          <li>充電開始時間 = 前趟結束時間；實際充電時間 = 空檔秒數 − <code>estimatedTimeToFindChargingStationSeconds</code>。</li>
+          <li>續航提升 ≈ 每分鐘 +1 km，上限為 <code>defaultRangeKm</code>；充電前後差異顯示於排程頁明細。</li>
+        </ul>
+      </div>
+    </div>
+
+    <form method="post" action="/settings">
+
+      <!-- Section 1: 行駛時間計算參數 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon icon-blue">🕐</div>
+          <h2>行駛時間計算參數</h2>
+        </div>
+        <div class="card-body">
+
+          <!-- 尖峰 -->
+          <div class="time-range-group">
+            <div class="trg-header">
+              <span class="trg-badge rush">尖峰</span>
+              <div class="trg-title">
+                尖峰時段範圍與加成
+                <small>符合任一時段即套用加成分鐘數</small>
+              </div>
+              <div class="trg-bonus-wrap">
+                <input type="number" name="geoRushHourMinutes"
+                  value="<%= config.geoRushHourMinutes != null ? config.geoRushHourMinutes : 10 %>"
+                  step="0.5" class="bonus-input" />
+                <span class="input-unit">分鐘</span>
+              </div>
+            </div>
+            <div class="trg-rows">
+              <div class="trg-row">
+                <span class="trg-label">早峰</span>
+                <input type="time" name="rushHourMorningStart"
+                  value="<%= config.rushHourMorningStart || '06:00' %>" />
+                <span class="trg-sep">至</span>
+                <input type="time" name="rushHourMorningEnd"
+                  value="<%= config.rushHourMorningEnd || '10:00' %>" />
+              </div>
+              <div class="trg-row">
+                <span class="trg-label">晚峰</span>
+                <input type="time" name="rushHourEveningStart"
+                  value="<%= config.rushHourEveningStart || '15:00' %>" />
+                <span class="trg-sep">至</span>
+                <input type="time" name="rushHourEveningEnd"
+                  value="<%= config.rushHourEveningEnd || '20:00' %>" />
+              </div>
+            </div>
+          </div>
+
+          <hr class="field-divider" />
+
+          <!-- 離峰 -->
+          <div class="time-range-group">
+            <div class="trg-header">
+              <span class="trg-badge light">離峰</span>
+              <div class="trg-title">
+                離峰時段範圍與加成
+                <small>早於「早上截止」或晚於「深夜開始」皆視為離峰</small>
+              </div>
+              <div class="trg-bonus-wrap">
+                <input type="number" name="geoLightHourMinutes"
+                  value="<%= config.geoLightHourMinutes != null ? config.geoLightHourMinutes : -5 %>"
+                  step="0.5" class="bonus-input" />
+                <span class="input-unit">分鐘</span>
+              </div>
+            </div>
+            <div class="trg-rows">
+              <div class="trg-row">
+                <span class="trg-label">早晨截止</span>
+                <input type="time" name="lightHourEarlyEnd"
+                  value="<%= config.lightHourEarlyEnd || '06:30' %>" />
+                <span class="trg-sep" style="visibility:hidden;">至</span>
+                <span class="trg-hint">早於此時間 = 離峰</span>
+              </div>
+              <div class="trg-row">
+                <span class="trg-label">深夜開始</span>
+                <input type="time" name="lightHourLateStart"
+                  value="<%= config.lightHourLateStart || '20:00' %>" />
+                <span class="trg-sep" style="visibility:hidden;">至</span>
+                <span class="trg-hint">晚於此時間 = 離峰</span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="field-divider" />
+
+          <!-- Speed band table -->
+          <div class="field-label" style="margin-bottom:4px;">
+            推定時速分段
+            <small>依直線距離分段設定推定時速；最後一段「距離上限」留空代表其餘所有距離。</small>
+          </div>
+
+          <%
+            let speedBands;
+            try {
+              speedBands = JSON.parse(config.geoEstimatedSpeedBands || "[]");
+            } catch (e) {
+              speedBands = [];
+            }
+            if (!Array.isArray(speedBands) || speedBands.length === 0) {
+              speedBands = [
+                { maxDist: 3, speed: 11.5 },
+                { maxDist: 10, speed: 13 },
+                { maxDist: 15, speed: 21.5 },
+                { maxDist: 20, speed: 25.5 },
+                { maxDist: 30, speed: 37 },
+                { maxDist: 60, speed: 47 },
+                { maxDist: 80, speed: 58 },
+                { maxDist: null, speed: 62 },
+              ];
+            }
+            const rows = 8;
+          %>
+          <table class="speed-table">
+            <thead>
+              <tr>
+                <th style="width:44px;">#</th>
+                <th>距離上限 (km)</th>
+                <th>推定時速 (km/h)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% for (let i = 0; i < rows; i++) {
+                   const band = speedBands[i] || {};
+              %>
+              <tr>
+                <td><span class="band-idx"><%= i + 1 %></span></td>
+                <td>
+                  <input type="number"
+                    name="speedBandMaxDist_<%= i + 1 %>"
+                    value="<%= band.maxDist != null && band.maxDist !== Infinity ? band.maxDist : '' %>"
+                    placeholder="∞"
+                    step="0.1" />
+                </td>
+                <td>
+                  <input type="number"
+                    name="speedBandSpeed_<%= i + 1 %>"
+                    value="<%= band.speed != null ? band.speed : '' %>"
+                    step="0.1" />
+                </td>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+
+        </div>
+      </div>
+
+      <!-- Section 2: 時間與距離 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon icon-amber">📏</div>
+          <h2>時間與距離相關</h2>
+        </div>
+        <div class="card-body">
+
+          <div class="field">
+            <div class="field-label">
+              平均車速
+              <code>estimatedSpeedKmh</code>
+              <small>影響路程時間估算，預設 15 km/h。</small>
+            </div>
+            <div class="field-input">
+              <input type="number" name="estimatedSpeedKmh" value="<%= config.estimatedSpeedKmh %>" />
+              <span class="input-unit">km/h</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              機場路段平均時速
+              <code>estimatedAirportSpeedKmh</code>
+              <small>機場來回路段的推定時速。</small>
+            </div>
+            <div class="field-input">
+              <input type="number" name="estimatedAirportSpeedKmh" value="<%= config.estimatedAirportSpeedKmh %>" />
+              <span class="input-unit">km/h</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              機場輕量時段時速
+              <code>estimatedLightHourAirportSpeedKmh</code>
+              <small>清晨／深夜等輕量時段的機場時速。</small>
+            </div>
+            <div class="field-input">
+              <input type="number" name="estimatedLightHourAirportSpeedKmh" value="<%= config.estimatedLightHourAirportSpeedKmh %>" />
+              <span class="input-unit">km/h</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              交通延遲時間
+              <code>estimatedDelaySeconds</code>
+              <small>為安全多抓的延遲時間。</small>
+            </div>
+            <div class="field-input">
+              <input type="number" name="estimatedDelaySeconds" value="<%= config.estimatedDelaySeconds %>" />
+              <span class="input-unit">秒</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              行程間最小間隔
+              <code>betweenReservationBufferSeconds</code>
+              <small>兩趟行程中間至少要留多少 buffer。</small>
+            </div>
+            <div class="field-input">
+              <input type="number" name="betweenReservationBufferSeconds" value="<%= config.betweenReservationBufferSeconds %>" />
+              <span class="input-unit">秒</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section 3: 電池與續航 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon icon-green">🔋</div>
+          <h2>電池與續航</h2>
+        </div>
+        <div class="card-body">
+
+          <div class="field">
+            <div class="field-label">
+              電車最大續航
+              <code>defaultRangeKm</code>
+            </div>
+            <div class="field-input">
+              <input type="number" name="defaultRangeKm" value="<%= config.defaultRangeKm %>" />
+              <span class="input-unit">km</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              最小可充電空檔
+              <code>minimumIdleTimeToChargeSeconds</code>
+            </div>
+            <div class="field-input">
+              <input type="number" name="minimumIdleTimeToChargeSeconds" value="<%= config.minimumIdleTimeToChargeSeconds %>" />
+              <span class="input-unit">秒</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              尋找充電站時間
+              <code>estimatedTimeToFindChargingStationSeconds</code>
+            </div>
+            <div class="field-input">
+              <input type="number" name="estimatedTimeToFindChargingStationSeconds" value="<%= config.estimatedTimeToFindChargingStationSeconds %>" />
+              <span class="input-unit">秒</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section 4: 演算法功能 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon icon-purple">⚙️</div>
+          <h2>演算法功能與企業優先度</h2>
+        </div>
+        <div class="card-body">
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用車種路由</span>
+              <small><code>enableVehicleTypeRouting</code> — 依車種先排大型車、再排一般車；關閉時所有車視為同一類型。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enableVehicleTypeRouting" <%= config.enableVehicleTypeRouting ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用駕駛負載平衡</span>
+              <small><code>enableDriverLoadBalancing</code> — 在相同條件下，盡量讓不同駕駛平均分配工作量。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enableDriverLoadBalancing" <%= config.enableDriverLoadBalancing ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用空檔填補</span>
+              <small><code>enableGapFilling</code> — 把新單塞進既有行程的縫隙中。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enableGapFilling" <%= config.enableGapFilling ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>空檔填補時檢查電量</span>
+              <small><code>enableGapFillingBatteryValidation</code> — 填補前先驗證完整班次電量可行性。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enableGapFillingBatteryValidation" <%= config.enableGapFillingBatteryValidation ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用企業優先排程流程</span>
+              <small><code>enablePriorityBasedScheduling</code> — 先確保高優先企業行程可排，再考慮低優先企業。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enablePriorityBasedScheduling" <%= config.enablePriorityBasedScheduling ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用企業優先可行性檢查</span>
+              <small><code>enablePriorityBasedEligibilityCheck</code> — 高優先企業做 gap-filling 可行性檢查，低優先企業以較寬鬆方式處理。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enablePriorityBasedEligibilityCheck" <%= config.enablePriorityBasedEligibilityCheck ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>低優先單依時間排序</span>
+              <small><code>sortLowPriorityReservationsByTime</code></small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="sortLowPriorityReservationsByTime" <%= config.sortLowPriorityReservationsByTime ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用電量可行性檢查</span>
+              <small><code>checkBatteryRange</code> — 若關閉，演算法不會因電量不足拒絕行程（僅建議測試用）。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="checkBatteryRange" <%= (config.checkBatteryRange !== false) ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <hr class="field-divider" />
+
+          <div class="field">
+            <div class="field-label">
+              高優先企業 ID 清單
+              <small>逗號分隔，例：41,42,99。這些 enterpriseId 的訂單在排程時優先處理。</small>
+            </div>
+            <div class="field-input">
+              <input type="text" name="highPriorityEnterpriseIdsCsv"
+                value="<%= config.highPriorityEnterpriseIdsCsv || '' %>"
+                placeholder="留空則不區分" />
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              低優先企業 ID 清單
+              <small>逗號分隔，例：41,42,43,37。對應 <code>LOW_PRIORITY_ENTERPRISES</code>。</small>
+            </div>
+            <div class="field-input">
+              <input type="text" name="lowPriorityEnterpriseIdsCsv"
+                value="<%= config.lowPriorityEnterpriseIdsCsv || '' %>"
+                placeholder="留空則不區分" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Section 5: 其他參數 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon icon-slate">👤</div>
+          <h2>其他參數與駕駛優先層級</h2>
+        </div>
+        <div class="card-body">
+
+          <div class="field">
+            <div class="field-label">
+              第一筆行程最大距離
+              <code>maxRangeForFirstReservationKm</code>
+            </div>
+            <div class="field-input">
+              <input type="number" name="maxRangeForFirstReservationKm" value="<%= config.maxRangeForFirstReservationKm %>" />
+              <span class="input-unit">km</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              第一筆行程前留的緩衝
+              <code>firstReservationBufferSeconds</code>
+            </div>
+            <div class="field-input">
+              <input type="number" name="firstReservationBufferSeconds" value="<%= config.firstReservationBufferSeconds %>" />
+              <span class="input-unit">秒</span>
+            </div>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span>啟用預約可行性檢查 API</span>
+              <small><code>enableCheckIfReservationAllowed</code> — 影響 zemo-api 是否啟用 checkIfReservationAllowed 邏輯（本 demo 僅作參數同步用）。</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" name="enableCheckIfReservationAllowed" <%= config.enableCheckIfReservationAllowed ? "checked" : "" %> />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <hr class="field-divider" />
+
+          <div class="field">
+            <div class="field-label">
+              救火駕駛（Relief）ID 清單
+              <small>逗號分隔。這些 driverId 在 Proximity 中優先順序最低（Regular &gt; Secondary &gt; Relief）。</small>
+            </div>
+            <div class="field-input">
+              <input type="text" name="reliefDriverIdsCsv"
+                value="<%= config.reliefDriverIdsCsv || '' %>"
+                placeholder="留空" />
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">
+              次要駕駛（Secondary）ID 清單
+              <small>逗號分隔。優先順序介於 Regular 與 Relief 之間。</small>
+            </div>
+            <div class="field-input">
+              <input type="text" name="secondaryDriverIdsCsv"
+                value="<%= config.secondaryDriverIdsCsv || '' %>"
+                placeholder="留空" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <span>💾</span> 儲存設定
+        </button>
+        <button type="submit" name="action" value="reset" class="btn btn-ghost">
+          重設為預設值
+        </button>
+      </div>
+
+    </form>
+
+    <!-- Slot Monitor -->
+    <div class="card" style="margin-top:24px; border-color:#fbbf24;">
+      <div class="card-header" style="background:#fffbeb;">
+        <div class="card-header-icon" style="background:#fef3c7;">📡</div>
+        <h2>Slot Monitor 暫停銷售通知</h2>
+      </div>
+      <div class="card-body">
+        <!-- Slack Channel ID 設定 -->
+        <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #f3f4f6;">
+          <p style="font-size:13px; color:#374151; margin:0 0 4px; font-weight:600;">Slack 頻道設定</p>
+          <p style="font-size:12px; color:#6b7280; margin:0 0 10px;">
+            設定暫停銷售通知要發送到哪個 Slack 頻道。Channel ID 可在 Slack 頻道資訊的最底部找到。
+          </p>
+          <form method="post" action="/settings/save-slack-channel">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="text" name="slackChannelId"
+                value="<%= config.slackChannelId || '' %>"
+                placeholder="例如 C0A3RPZD5RP"
+                style="flex:1; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;" />
+              <button type="submit" class="btn btn-primary" style="white-space:nowrap;">儲存頻道</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 手動觸發全量通知 -->
+        <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #f3f4f6;">
+          <p style="font-size:13px; color:#374151; margin:0 0 4px; font-weight:600;">手動發送暫停銷售通知</p>
+          <p style="font-size:12px; color:#6b7280; margin:0 0 10px;">
+            計算明天起 30 天的排程，將所有暫停銷售時段一次發送到 Slack。不檢查是否重複，不寫入 Supabase。
+          </p>
+          <form method="post" action="/settings/send-all-pause-notifications" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='執行中，請稍候...';">
+            <button type="submit" class="btn btn-primary">
+              發送 30 天暫停銷售通知
+            </button>
+          </form>
+        </div>
+
+        <!-- 清除通知紀錄 -->
+        <p style="font-size:13px; color:#374151; margin:0 0 4px; font-weight:600;">清除通知紀錄</p>
+        <p style="font-size:12px; color:#6b7280; margin:0 0 10px;">
+          清除 Supabase 中已發送的紀錄。清除後，下次定時執行會重新發送所有差異通知。適用於測試切換正式時使用。
+        </p>
+        <form method="post" action="/settings/reset-slot-monitor" onsubmit="return confirm('確定要清除所有通知紀錄嗎？');">
+          <button type="submit" class="btn btn-ghost">
+            清除通知紀錄
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleDoc(btn) {
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", !expanded);
+      const body = btn.nextElementSibling;
+      body.classList.toggle("open", !expanded);
+    }
+  </script>
+</body>
+</html>

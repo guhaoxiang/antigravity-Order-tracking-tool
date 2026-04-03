@@ -1,0 +1,23 @@
+{
+  "name": "scheduler-web-demo",
+  "version": "1.0.0",
+  "description": "Standalone web UI for experimenting with Zemo auto-scheduling algorithms without modifying zemo-api.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "NODE_ENV=development node app.js",
+    "test": "node test/insertable-slots-stress.js",
+    "test:verbose": "node test/insertable-slots-stress.js --verbose"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.101.1",
+    "axios": "^1.6.0",
+    "dotenv": "^17.4.0",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-session": "^1.19.0",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43"
+  }
+}

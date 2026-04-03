@@ -1,0 +1,10 @@
+{
+  "baseUrl": "https://www.zemotw.com",
+  "reservationEndpoint": "/api/reservation/records",
+  "userListEndpoint": "/api/user/getUserList",
+  "scheduleAndLeaveEndpoint": "/api/driver/getDriversScheduleAndLeave",
+  "authHeaderName": "Authorization",
+  "authHeaderValue": "請填入你的 token 或 Bearer xxx",
+  "timezone": "Asia/Taipei",
+  "lineId": ""
+}

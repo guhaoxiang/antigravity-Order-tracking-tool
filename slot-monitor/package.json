@@ -1,0 +1,18 @@
+{
+  "name": "slot-monitor",
+  "version": "1.0.0",
+  "description": "Slot Monitor - 暫停銷售自動通知系統",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test:single": "node index.js --days 1",
+    "test:dry": "node index.js --dry-run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.0",
+    "dotenv": "^17.4.0",
+    "lodash": "^4.17.21",
+    "moment-timezone": "^0.5.43"
+  }
+}

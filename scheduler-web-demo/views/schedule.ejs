@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>自動排程 - Scheduler Web Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #e0f2fe 0, #f4f5f7 40%, #f4f5f7 100%);
+      margin: 0;
+      padding: 0;
+    }
+    .layout {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 24px 32px;
+      background: #ffffff;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border-radius: 16px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .title-block h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 1px;
+    }
+    .title-block p {
+      margin: 4px 0 0 0;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .nav {
+      display: inline-flex;
+      padding: 4px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      font-size: 13px;
+    }
+    .nav a {
+      color: #4b5563;
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-right: 4px;
+    }
+    .nav a:hover {
+      background: #e5e7eb;
+    }
+    .nav a:first-child {
+      background: #2563eb;
+      color: #ffffff;
+    }
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    label {
+      font-size: 14px;
+      color: #374151;
+    }
+    input[type="date"] {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: none;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .error {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #fef2f2;
+      color: #b91c1c;
+      font-size: 13px;
+    }
+    .summary-card {
+      margin-top: 8px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #eff6ff, #eef2ff);
+      border: 1px solid #e5e7eb;
+      font-size: 14px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px 16px;
+    }
+    .summary-item-label {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .summary-item-value {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .two-column {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      padding: 16px 18px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    .card-overview {
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .muted {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+    .driver-name {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .driver-main {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .driver-sub {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .driver-name span.badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #166534;
+      font-size: 11px;
+    }
+    .driver-overview-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .driver-block {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+      border-left: 4px solid #3b82f6;
+    }
+    .driver-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .driver-block-meta {
+      font-size: 13px;
+      font-weight: 500;
+      color: #475569;
+      background: rgba(255,255,255,0.8);
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+    .driver-block-body {
+      padding: 14px 16px;
+      background: #ffffff;
+    }
+    .trip-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      background: #fafbfc;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .trip-line:last-child {
+      margin-bottom: 0;
+    }
+    .trip-line-content {
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .trip-line-charging {
+      color: #0c4a6e;
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+      border-color: #bae6fd;
+    }
+    .trip-line-charging .trip-time {
+      color: #0369a1;
+    }
+    .trip-line-transit {
+      color: #064e3b;
+      background: linear-gradient(135deg, #dcfce7 0%, #ecfdf5 100%);
+      border-color: #bbf7d0;
+    }
+    .trip-line-transit .trip-time {
+      color: #047857;
+    }
+    .trip-range {
+      flex-shrink: 0;
+      margin-left: 6px;
+      font-size: 11px;
+      color: #64748b;
+    }
+    .trip-vehicle-type {
+      display: inline-block;
+      margin-right: 6px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .trip-line:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+    }
+    .trip-time {
+      flex-shrink: 0;
+      display: inline-block;
+      min-width: 42px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #334155;
+    }
+    .trip-details {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+      margin-left: 0;
+      padding-left: 0;
+    }
+    .trip-details-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      color: #64748b;
+      transition: color 0.15s, background 0.15s;
+    }
+    .trip-details-toggle:hover {
+      color: #3b82f6;
+      background: #eff6ff;
+    }
+    .trip-details-chevron {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      font-size: 10px;
+    }
+    .trip-details[open] .trip-details-chevron {
+      transform: rotate(90deg);
+    }
+    .trip-details summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .trip-details summary::-webkit-details-marker {
+      display: none;
+    }
+    .trip-details summary::-moz-list-bullet {
+      list-style-type: none;
+    }
+    .trip-details .debug-list {
+      margin-top: 8px;
+      padding-left: 12px;
+      margin-left: 2px;
+      font-size: 11px;
+      color: #475569;
+      border-left: 2px solid #e2e8f0;
+    }
+    .trip-segment-detail li {
+      white-space: normal;
+      margin-bottom: 8px;
+    }
+    .debug-list li {
+      margin-bottom: 4px;
+    }
+    .overview-hint {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+    .trip-full-route {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #475569;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .trip-full-route .route-label {
+      font-weight: 600;
+      color: #334155;
+      margin-right: 6px;
+    }
+    .unassigned-list { display: flex; flex-direction: column; gap: 6px; }
+    .unassigned-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 6px 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1px solid #fecaca;
+      background: #fff5f5;
+      font-size: 12.5px;
+    }
+    .unassigned-item:hover { background: #fef2f2; }
+    .ua-time {
+      font-weight: 700;
+      color: #dc2626;
+      font-size: 14px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ua-route {
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+    .ua-origin, .ua-dest {
+      color: #374151;
+      font-size: 12.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ua-arrow { color: #9ca3af; margin: 0 2px; flex-shrink: 0; }
+    .ua-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .ua-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .ua-badge-vehicle { background: #e0e7ff; color: #3730a3; }
+    .ua-badge-enterprise { background: #f3f4f6; color: #6b7280; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    .ua-badge-passenger { background: #fef3c7; color: #92400e; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="header">
+      <div class="title-block">
+        <h1>自動排程模擬</h1>
+        <p>以目前 ZEMO 演算法與參數，快速試算不同日期的駕駛排班結果。</p>
+      </div>
+      <div class="nav">
+        <a href="/schedule">自動排程</a>
+        <a href="/settings">參數設定</a>
+      </div>
+    </div>
+
+    <form method="post" action="/schedule">
+      <div class="form-row">
+        <label>排程日期：</label>
+        <input type="date" name="date" value="<%= date %>" />
+        <button type="submit">執行排程</button>
+      </div>
+      <p class="muted">說明：此頁只做「模擬排程」，不會真正修改正式系統。</p>
+    </form>
+
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+
+    <% if (result) { %>
+      <div class="summary-card">
+        <% if (typeof result.fetchedReservationCount === 'number') { %>
+          <div style="margin-bottom:8px;">已取得 <strong><%= result.fetchedReservationCount %></strong> 筆預約資料。</div>
+        <% } %>
+        <div class="summary-grid">
+          <div>
+            <div class="summary-item-label">駕駛數量</div>
+            <div class="summary-item-value"><%= result.summary.driverCount %></div>
+          </div>
+          <div>
+            <div class="summary-item-label">總預約數</div>
+            <div class="summary-item-value"><%= result.summary.totalReservations %></div>
+          </div>
+          <div>
+            <div class="summary-item-label">已分配預約</div>
+            <div class="summary-item-value"><%= result.summary.assignedReservations %></div>
+          </div>
+          <div>
+            <div class="summary-item-label">未分配預約</div>
+            <div class="summary-item-value"><%= result.summary.unassignedReservations %></div>
+          </div>
+          <% /* 是否全部安排成功：暫不顯示，避免誤導使用者 */ %>
+        </div>
+      </div>
+
+      <% 
+        const driverMetaMap = {};
+        (result.driverMeta || []).forEach(function(d) { driverMetaMap[d.id] = d; });
+        const debugByDriver = result.debug || {};
+        function formatTime(ts) {
+          if (!ts) return "";
+          const d = new Date(ts * 1000);
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          return hh + ":" + mm;
+        }
+        function formatMinutes(sec) {
+          return Math.round(sec / 60);
+        }
+        function formatAddress(loc) {
+          if (!loc) return '';
+          const raw = (loc.name || loc.address || '').trim();
+          if (!raw) return '';
+          return formatAddressStr(raw);
+        }
+        function formatAddressStr(raw) {
+          if (!raw || typeof raw !== 'string') return raw;
+          if (raw.indexOf('航站南路') !== -1) return '桃園機場';
+          if (raw.indexOf('敦化北路338號') !== -1) return '松山機場';
+          if (raw.indexOf('敦化北路') !== -1) return '松山機場';
+          if (raw.indexOf('Songshan') !== -1 && (raw.indexOf('Airport') !== -1 || raw.indexOf('TSA') !== -1)) return '松山機場';
+          var s = raw.replace(/^\d{3,6}\s*/, '').replace(/台灣|臺灣/g, '').trim();
+          return s || raw;
+        }
+        function formatVehicleType(v) {
+          if (!v) return '—';
+          const s = String(v).toUpperCase();
+          if (s === 'LARGE' || s === '輪' || s === '輪椅') return '七人座';
+          if (s === 'STANDARD' || s === '小車' || s === '一般') return '五人座';
+          return v;
+        }
+      %>
+
+      <% if (result.pausePeriodsSummary && Object.keys(result.pausePeriodsSummary).length > 0) { %>
+        <div class="card" style="margin-bottom:20px; border:1.5px solid #fbbf24; border-radius:14px; overflow:hidden;">
+          <div style="background:#fffbeb; padding:14px 20px 10px; border-bottom:1px solid #fde68a;">
+            <h2 style="margin:0; font-size:16px; color:#92400e;">暫停銷售時段總覽（<%= date %>）</h2>
+            <p style="margin:4px 0 0; font-size:12px; color:#b45309;">以下時段所有該車種駕駛皆已滿單，建議至後台設定暫停銷售</p>
+          </div>
+          <div style="padding:14px 20px; display:grid; grid-template-columns:1fr 1fr; gap:12px 20px;">
+            <%
+              const pauseCats = [
+                { key: "STANDARD_dropoff", label: "五人座送機", color: "#dc2626", bg: "#fef2f2" },
+                { key: "STANDARD_pickup",  label: "五人座接機", color: "#2563eb", bg: "#eff6ff" },
+                { key: "LARGE_dropoff",    label: "七人座送機", color: "#dc2626", bg: "#fef2f2" },
+                { key: "LARGE_pickup",     label: "七人座接機", color: "#2563eb", bg: "#eff6ff" },
+              ];
+            %>
+            <% pauseCats.forEach(function(cat) { %>
+              <% const periods = result.pausePeriodsSummary[cat.key] || []; %>
+              <div style="padding:10px 14px; border-radius:10px; background:<%= cat.bg %>; border:1px solid #e5e7eb;">
+                <div style="font-weight:700; font-size:13px; color:<%= cat.color %>; margin-bottom:6px;">
+                  <%= cat.label %><span style="font-weight:400; color:#6b7280; margin-left:6px;">(<%= periods.length %> 段)</span>
+                </div>
+                <% if (periods.length === 0) { %>
+                  <div style="font-size:12px; color:#059669;">全時段可售</div>
+                <% } else { %>
+                  <ul style="margin:0; padding-left:16px; font-size:12px; color:#374151; line-height:1.7;">
+                    <% periods.forEach(function(p) { %>
+                      <li><strong><%= formatTime(p.start) %></strong> ~ <strong><%= formatTime(p.end) %></strong></li>
+                    <% }); %>
+                  </ul>
+                <% } %>
+              </div>
+            <% }); %>
+          </div>
+        </div>
+      <% } %>
+
+      <div class="two-column">
+        <div class="card card-overview">
+          <h2>駕駛行程概覽</h2>
+          <p class="overview-hint">若行程間有 20 分鐘以上空檔，系統會自動安排充電行程並顯示於時間軸中。（可於參數設定調整「最小可充電空檔」）</p>
+          <% if (Object.keys(result.schedule).length === 0) { %>
+            <p class="muted">目前沒有任何駕駛行程（可能是沒有駕駛可用或 API 回傳為空）。</p>
+          <% } else { %>
+            <div class="driver-overview-list">
+                <% Object.keys(result.schedule).forEach(function(driverId) { %>
+                  <% const s = result.schedule[driverId]; %>
+                  <% const meta = driverMetaMap[Number(driverId)] || driverMetaMap[driverId]; %>
+                  <% const dbgForDriver = debugByDriver[driverId] || debugByDriver[String(driverId)]; %>
+                  <div class="driver-block">
+                    <div class="driver-block-header">
+                      <div class="driver-name">
+                        <div class="driver-main">
+                          <strong><%= meta ? meta.username : ('駕駛 ' + driverId) %></strong>
+                          <% const driverVehicle = meta && meta.vehicleType ? meta.vehicleType : (dbgForDriver && dbgForDriver.vehicleType ? dbgForDriver.vehicleType : null); %>
+                          <% if (driverVehicle) { %>
+                            <span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;<%= driverVehicle === 'LARGE' ? 'background:#dbeafe;color:#1d4ed8;' : 'background:#f3f4f6;color:#6b7280;' %>"><%= formatVehicleType(driverVehicle) %></span>
+                          <% } %>
+                          <span class="muted"><%= meta && meta.carInfo ? (meta.carInfo.licenseNum || '') : '' %></span>
+                          <% if (meta && meta.service === true) { %>
+                            <span class="badge">可排班</span>
+                          <% } %>
+                        </div>
+                        <% if (dbgForDriver && dbgForDriver.workHoursLabel) { %>
+                          <div class="driver-sub">
+                            今日可排：<%= dbgForDriver.workHoursLabel %>
+                          </div>
+                        <% } %>
+                      </div>
+                      <span class="driver-block-meta">預約數：<%= s.reservations ? s.reservations.length : 0 %></span>
+                    </div>
+                    <div class="driver-block-body">
+                      <% 
+                        const dbg = debugByDriver[driverId] || debugByDriver[String(driverId)];
+                        const timelineItems = (dbg && Array.isArray(dbg.timelineItems)) ? dbg.timelineItems : [];
+                        const insertableSlots = (dbg && Array.isArray(dbg.insertableSlots)) ? dbg.insertableSlots : [];
+                        const dropoffSlots = insertableSlots.filter(function(slot){ return slot && slot.tripType === 'dropoff'; });
+                        const pickupSlots = insertableSlots.filter(function(slot){ return slot && slot.tripType === 'pickup'; });
+                        const useTimeline = timelineItems.length > 0;
+                        const sortedResFallback = (s.reservations && s.reservations.length > 0) ? [].concat(s.reservations).filter(function(r){ return r && (r.reservationTime != null); }).sort(function(a,b){ return (a.reservationTime || 0) - (b.reservationTime || 0); }) : [];
+                        const tripsList = (dbg && Array.isArray(dbg.trips)) ? dbg.trips : [];
+                      %>
+                      <% if ((dropoffSlots && dropoffSlots.length > 0) || (pickupSlots && pickupSlots.length > 0)) { %>
+                        <div class="muted" style="margin:4px 0 10px 0; font-size:12px;">
+                          若前一趟為接機，後續可塞假行程的 reservation time 需至少間隔 30 分鐘。
+                        </div>
+                      <% } %>
+                      <% if (dropoffSlots && dropoffSlots.length > 0) { %>
+                        <div style="margin-bottom:12px; padding:10px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#fff7ed;">
+                          <div style="font-weight:600; color:#9a3412; margin-bottom:6px;">可再塞送機（台北車站→桃園機場）</div>
+                          <ul style="margin:0; padding-left:18px; font-size:12px; color:#7c2d12; line-height:1.6;">
+                            <% dropoffSlots.forEach(function(slot) { %>
+                              <% if (!slot || !slot.windows || slot.windows.length === 0) return; %>
+                              <% slot.windows.forEach(function(w) { %>
+                                <% if (!w) return; %>
+                                <li>
+                                  <strong><%= formatTime(w.startTime) %> ~ <%= formatTime(w.endTime) %></strong>
+                                  <span class="muted">[可塞入一筆送機]</span>
+                                  <% if (w.minBatteryMarginKmUntilNextCharge != null) { %>
+                                    <span class="muted">，到下次充電前最小餘裕 <strong><%= w.minBatteryMarginKmUntilNextCharge.toFixed(1) %> km</strong></span>
+                                  <% } %>
+                                </li>
+                              <% }); %>
+                            <% }); %>
+                          </ul>
+                        </div>
+                      <% } %>
+                      <% if (pickupSlots && pickupSlots.length > 0) { %>
+                        <div style="margin-bottom:12px; padding:10px 12px; border-radius:10px; border:1px solid #e5e7eb; background:#ecfeff;">
+                          <div style="font-weight:600; color:#155e75; margin-bottom:6px;">可再塞接機（桃園機場→台北車站）</div>
+                          <ul style="margin:0; padding-left:18px; font-size:12px; color:#0f766e; line-height:1.6;">
+                            <% pickupSlots.forEach(function(slot) { %>
+                              <% if (!slot || !slot.windows || slot.windows.length === 0) return; %>
+                              <% slot.windows.forEach(function(w) { %>
+                                <% if (!w) return; %>
+                                <li>
+                                  <strong><%= formatTime(w.reservationTimeStart != null ? w.reservationTimeStart : w.startTime) %> ~ <%= formatTime(w.reservationTimeEnd != null ? w.reservationTimeEnd : w.endTime) %></strong>
+                                  <span class="muted">[可塞入一筆接機 reservation time]</span>
+                                  <% if (w.driverArrivalDeadlineStart != null && w.driverArrivalDeadlineEnd != null) { %>
+                                    <span class="muted">，司機最晚抵機窗 <strong><%= formatTime(w.driverArrivalDeadlineStart) %> ~ <%= formatTime(w.driverArrivalDeadlineEnd) %></strong></span>
+                                  <% } %>
+                                  <% if (w.passengerPickupTimeStart != null && w.passengerPickupTimeEnd != null) { %>
+                                    <span class="muted">，乘客上車窗 <strong><%= formatTime(w.passengerPickupTimeStart) %> ~ <%= formatTime(w.passengerPickupTimeEnd) %></strong></span>
+                                  <% } %>
+                                  <% if (w.minBatteryMarginKmUntilNextCharge != null) { %>
+                                    <span class="muted">，到下次充電前最小餘裕 <strong><%= w.minBatteryMarginKmUntilNextCharge.toFixed(1) %> km</strong></span>
+                                  <% } %>
+                                </li>
+                              <% }); %>
+                            <% }); %>
+                          </ul>
+                        </div>
+                      <% } %>
+                      <% if (useTimeline) { %>
+                        <% timelineItems.forEach(function(item) { %>
+                          <% if (item.type === 'charging') { %>
+                            <div class="trip-line trip-line-charging">
+                              <details class="trip-details">
+                                <summary>
+                                  <span class="trip-details-toggle" aria-label="展開充電計算"><span class="trip-details-chevron">▶</span></span>
+                                  <span class="trip-time"><%= formatTime(item.startTime) %> ~ <%= formatTime(item.endTime) %></span>
+                                  <span class="trip-line-content">[行程間充電] 停留約 <%= formatMinutes(item.durationSec) %> 分鐘，續航由 <%= item.rangeBeforeKm != null ? item.rangeBeforeKm.toFixed(1) : '?' %> km 提升至 <%= item.rangeAfterKm != null ? item.rangeAfterKm.toFixed(1) : '?' %> km</span>
+                                </summary>
+                                <div class="trip-full-route" style="margin-top:8px;">
+                                  <% if (item.chargingCalculation) { %>
+                                    <% const cc = item.chargingCalculation; %>
+                                    <div class="charging-detail-steps" style="margin-top:10px; padding-top:8px; border-top:1px solid #e2e8f0;">
+                                      <strong>充電運算過程：</strong>
+                                      <ul class="doc-sublist" style="margin:6px 0 0 0; padding-left:18px;">
+                                        <% if (cc.startFindStationTime && cc.endFindStationTime) { %>
+                                          <li>
+                                            尋找充電樁時間：<strong><%= formatTime(cc.startFindStationTime) %> ~ <%= formatTime(cc.endFindStationTime) %></strong>
+                                          </li>
+                                        <% } else if (cc.findStationMin != null) { %>
+                                          <li>
+                                            尋找充電樁時間：<strong><%= cc.findStationMin %> 分鐘</strong>
+                                          </li>
+                                        <% } %>
+
+                                        <% if (cc.transitBreakdown) { %>
+                                          <li>
+                                            移動至下一趟起點所需時間：
+                                            <div style="margin-left: 1.25em;">
+                                              <div>距離 <strong><%= cc.transitBreakdown.distanceKm.toFixed(1) %> km</strong></div>
+                                              <div>時速 <strong><%= cc.transitBreakdown.estimatedSpeedKmh %> km/h</strong> → 基礎行駛時間 = 距離 ÷ 時速 = <strong><%= cc.transitBreakdown.baseMin %> 分鐘</strong></div>
+                                            </div>
+                                          </li>
+                                        <% } else if (cc.transitToNextPickupMin != null) { %>
+                                          <li>
+                                            移動至下一趟起點所需時間：<strong><%= cc.transitToNextPickupMin %> 分鐘</strong>
+                                          </li>
+                                        <% } %>
+
+                                        <% if (cc.mustFinishChargingTime != null) { %>
+                                          <li>
+                                            本次實際充電結束時間 = <strong><%= formatTime(item.endTime) %></strong>
+                                          </li>
+                                        <% } %>
+
+                                        <% if (cc.effectiveChargingMin != null) { %>
+                                          <li>
+                                            可以停留多久：<strong><%= cc.effectiveChargingMin %> 分鐘</strong>
+                                            <% if (cc.idleTimeMin != null && cc.findStationMin != null) { %>
+                                              （空檔 <%= cc.idleTimeMin %> 分鐘 − 尋找充電樁 <%= cc.findStationMin %> 分鐘）
+                                            <% } else { %>
+                                              （空檔 − 尋找充電樁）
+                                            <% } %>
+                                          </li>
+                                        <% } %>
+
+                                        <% if (cc.rangeBeforeKm != null && cc.rangeAfterComputed != null) { %>
+                                          <li>
+                                            續航提升：
+                                            原 <strong><%= cc.rangeBeforeKm.toFixed(1) %> km</strong> → 充電後 <strong><%= cc.rangeAfterComputed.toFixed(1) %> km</strong>
+                                            <% if (cc.rangeGainKm != null) { %>（+<%= cc.rangeGainKm.toFixed(1) %> km）<% } %>
+                                            <% if (cc.defaultRangeKm != null) { %>，上限為車輛最大續航 <strong><%= cc.defaultRangeKm.toFixed ? cc.defaultRangeKm.toFixed(1) : cc.defaultRangeKm %> km</strong><% } %>
+                                          </li>
+                                        <% } %>
+                                        <% if (cc.rangeBeforeKm == null || cc.rangeAfterComputed == null) { %>
+                                          <li>續航提升：—（資料不足）</li>
+                                        <% } %>
+                                      </ul>
+                                    </div>
+                                  <% } else { %>
+                                    <% if (item.startTimeReason) { %><div>開始時間：<%= item.startTimeReason %></div><% } %>
+                                    <% if (item.durationReason) { %><div>可停留多久：<%= item.durationReason %></div><% } %>
+                                    <% if (item.rangeCalculation) { %><div>續航提升計算：<%= item.rangeCalculation %></div><% } %>
+                                  <% } %>
+                                  <% if (!item.startTimeReason && !item.durationReason && !item.rangeCalculation && !item.chargingCalculation) { %><div class="muted">無詳細資料（請確認排程來源是否包含充電任務與電量欄位）</div><% } %>
+                                </div>
+                              </details>
+                            </div>
+                          <% } else if (item.type === 'transit') { %>
+                            <div class="trip-line trip-line-transit">
+                              <details class="trip-details">
+                                <summary>
+                                  <span class="trip-details-toggle" aria-label="展開移動運算過程"><span class="trip-details-chevron">▶</span></span>
+                                  <span class="trip-time"><%= formatTime(item.startTime) %> ~ <%= formatTime(item.endTime) %></span>
+                                  <span class="trip-line-content">
+                                    [行程間移動]
+                                    <%= formatAddressStr(item.fromAddress || '') || '上一趟行程終點' %>
+                                    &nbsp;→&nbsp;
+                                    <%= formatAddressStr(item.toAddress || '') || '下一趟行程起點' %>
+                                    <% if (item.batteryAfterKm != null) { %>
+                                      <span class="trip-range">剩餘 <%= item.batteryAfterKm.toFixed(1) %> km</span>
+                                    <% } %>
+                                  </span>
+                                </summary>
+                                <ul class="debug-list trip-segment-detail">
+                                  <li>
+                                    <% const seg = item; %>
+                                    <% const segLabel = (formatAddressStr(seg.fromAddress || '') + ' ~ ' + formatAddressStr(seg.toAddress || '')).trim() || '行程間移動'; %>
+                                    <strong>[<%= segLabel %>]</strong> <%= formatTime(seg.startTime) %> → <%= formatTime(seg.endTime) %><br>
+                                    距離 <%= (seg.distanceKm != null ? seg.distanceKm.toFixed(1) : '0.0') %> km，約 <%= formatMinutes(seg.durationSec || 0) %> 分鐘，
+                                    <% if (seg.batteryBeforeKm != null && seg.batteryAfterKm != null) { %>
+                                      原剩餘續航 <%= seg.batteryBeforeKm.toFixed(1) %> km，剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                    <% } else if (seg.batteryAfterKm != null) { %>
+                                      剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                    <% } %><br>
+                                    <% const effSpeedTransit = (seg.durationSec && seg.durationSec > 0) ? (seg.distanceKm / (seg.durationSec / 3600)) : 0; %>
+                                    | 套用時速：<%= (seg.estimatedSpeedKmh != null ? seg.estimatedSpeedKmh.toFixed(1) : effSpeedTransit.toFixed(1)) %> km/h<br>
+                                    | 區域加成：<%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分鐘<br>
+                                    | 尖峰加成：<%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分鐘<br>
+                                    <% const baseMinutesTransit = seg.baseDurationSec != null ? Math.round(seg.baseDurationSec / 60) : formatMinutes(seg.durationSec || 0); %>
+                                    | 時間運算過程：<%= baseMinutesTransit %> 分（行程耗時） + <%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分（區域） + <%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分（尖峰/離峰）<br>
+                                    <% if (seg.extraDurationSec != null && seg.extraDurationSec > 0) { %>
+                                      | 額外消耗時間：<%= formatMinutes(seg.extraDurationSec) %> 分鐘（<%= seg.extraReason || '' %>）
+                                    <% } else { %>
+                                      | 額外消耗時間：<%= seg.extraReason || '—' %>
+                                    <% } %>
+                                  </li>
+                                </ul>
+                              </details>
+                            </div>
+                          <% } else if (item.type === 'trip' && item.reservation) { %>
+                            <% const r = item.reservation; %>
+                            <% if (r && r.reservationTime != null) { %>
+                            <% const hasSegments = item.segments && item.segments.length > 0; %>
+                            <% const segForHeader = hasSegments ? item.segments[0] : null; %>
+                            <div class="trip-line">
+                              <details class="trip-details">
+                                <summary>
+                                  <span class="trip-details-toggle" aria-label="展開運算過程"><span class="trip-details-chevron">▶</span></span>
+                                  <span class="trip-time">
+                                    <% if (segForHeader) { %>
+                                      <%= formatTime(segForHeader.startTime) %> ~ <%= formatTime(segForHeader.endTime) %>
+                                    <% } else { %>
+                                      <%= formatTime(r.reservationTime) %>
+                                    <% } %>
+                                  </span>
+                                  <span class="trip-line-content"><span class="trip-vehicle-type" title="預約車輛類別"><%= formatVehicleType(r.requiredVehicleType || r.vehicleType) %></span> <%= formatAddress(r.origin) || '起點' %><% if (r.moreStops && r.moreStops.length > 0) { %><% r.moreStops.forEach(function(stop) { %> → <%= formatAddress(stop) || '停靠' %><% }); %><% } %> → <%= formatAddress(r.dest) || '終點' %><% if (item.batteryAfterKm != null) { %> <span class="trip-range">剩餘 <%= item.batteryAfterKm.toFixed(1) %> km</span><% } %></span>
+                                </summary>
+                                <div class="trip-full-route">
+                                  <div><span class="route-label">起點：</span><%= (r.origin && formatAddress(r.origin)) || '—' %></div>
+                                  <% if (r.moreStops && r.moreStops.length > 0) { %>
+                                    <% r.moreStops.forEach(function(stop, i) { %>
+                                      <div><span class="route-label">停靠<%= i + 1 %>：</span><%= (stop && formatAddress(stop)) || '—' %></div>
+                                    <% }); %>
+                                  <% } %>
+                                  <div><span class="route-label">終點：</span><%= (r.dest && formatAddress(r.dest)) || '—' %></div>
+                                </div>
+                                <% if (hasSegments) { %>
+                                  <ul class="debug-list trip-segment-detail">
+                                    <% item.segments.forEach(function(seg) { %>
+                                      <li>
+                                        <% const segLabel = (formatAddressStr(seg.fromAddress || '') + ' ~ ' + formatAddressStr(seg.toAddress || '')).trim() || (seg.type === 'to_pickup' ? '移動到上車點' : '載客行程'); %>
+                                      <strong>[<%= segLabel %>]</strong> <%= formatTime(seg.startTime) %> → <%= formatTime(seg.endTime) %><br>
+                                      距離 <%= seg.distanceKm.toFixed(1) %> km，約 <%= formatMinutes(seg.durationSec) %> 分鐘，
+                                      <% if (seg.batteryBeforeKm != null && seg.batteryAfterKm != null) { %>
+                                        原剩餘續航 <%= seg.batteryBeforeKm.toFixed(1) %> km，剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                      <% } else if (seg.batteryAfterKm != null) { %>
+                                        剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                      <% } %><br>
+                                      <% const effectiveSpeedKmh2 = seg.durationSec > 0 ? (seg.distanceKm / (seg.durationSec / 3600)) : 0; %>
+                                      | 套用時速：<%= (seg.estimatedSpeedKmh != null ? seg.estimatedSpeedKmh.toFixed(1) : effectiveSpeedKmh2.toFixed(1)) %> km/h<br>
+                                      | 區域加成：<%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分鐘<br>
+                                      | 尖峰加成：<%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分鐘<br>
+                                      <% const baseMinutes2 = seg.baseDurationSec != null ? Math.round(seg.baseDurationSec / 60) : formatMinutes(seg.durationSec); %>
+                                      | 時間運算過程：<%= baseMinutes2 %> 分（行程耗時） + <%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分（區域） + <%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分（尖峰/離峰）<br>
+                                      <% if (seg.extraDurationSec != null && seg.extraDurationSec > 0) { %>
+                                        | 額外消耗時間：<%= formatMinutes(seg.extraDurationSec) %> 分鐘（<%= seg.extraReason || '' %>）
+                                      <% } else { %>
+                                        | 額外消耗時間：<%= seg.extraReason || '—' %>
+                                      <% } %>
+                                      <% if (seg.airportWaitSeconds && seg.airportWaitSeconds > 0) { %>
+                                        | 機場等待乘客出關：約 <%= formatMinutes(seg.airportWaitSeconds) %> 分鐘（來自 Proximity 設定的機場緩衝時間）<br>
+                                        <% var moveMinutes = formatMinutes(seg.durationSec - seg.airportWaitSeconds); %>
+                                        <% var totalMinutes = moveMinutes + formatMinutes(seg.airportWaitSeconds); %>
+                                        | 乘客視角估算：等待約 <%= formatMinutes(seg.airportWaitSeconds) %> 分鐘 + 移動約 <%= moveMinutes %> 分鐘 ≈ <%= totalMinutes %> 分鐘<br>
+                                      <% } %>
+                                      </li>
+                                    <% }); %>
+                                  </ul>
+                                <% } else { %>
+                                  <p class="muted" style="margin:6px 0 0 0; font-size:11px;">此行程暫無運算明細</p>
+                                <% } %>
+                              </details>
+                            </div>
+                            <% } %>
+                          <% } %>
+                        <% }); %>
+                        <% if (dbg && dbg.totalDistanceKm != null) { %>
+                          <div class="muted" style="margin-top:6px;">
+                            當日總行駛約 <%= dbg.totalDistanceKm.toFixed(1) %> km，總時間約 <%= dbg.totalDrivingMinutes %> 分鐘
+                          </div>
+                        <% } %>
+                      <% } else if (sortedResFallback.length > 0) { %>
+                        <% sortedResFallback.forEach(function(r, idx) { %>
+                          <% if (r && r.reservationTime != null) { %>
+                          <% const tripDebug = tripsList[idx] || tripsList.find(function(t){ return t.reservationId == r.id; }); %>
+                          <% const hasSegments = tripDebug && tripDebug.segments && tripDebug.segments.length > 0; %>
+                          <div class="trip-line">
+                            <details class="trip-details">
+                              <summary>
+                                <span class="trip-details-toggle" aria-label="展開運算過程"><span class="trip-details-chevron">▶</span></span>
+                                <span class="trip-time"><%= formatTime(r.reservationTime) %></span>
+                                <span class="trip-line-content"><span class="trip-vehicle-type" title="預約車輛類別"><%= formatVehicleType(r.requiredVehicleType || r.vehicleType) %></span> <%= formatAddress(r.origin) || '起點' %><% if (r.moreStops && r.moreStops.length > 0) { %><% r.moreStops.forEach(function(stop) { %> → <%= formatAddress(stop) || '停靠' %><% }); %><% } %> → <%= formatAddress(r.dest) || '終點' %></span>
+                              </summary>
+                              <div class="trip-full-route">
+                                <div><span class="route-label">起點：</span><%= (r.origin && formatAddress(r.origin)) || '—' %></div>
+                                <% if (r.moreStops && r.moreStops.length > 0) { %>
+                                  <% r.moreStops.forEach(function(stop, i) { %>
+                                    <div><span class="route-label">停靠<%= i + 1 %>：</span><%= (stop && formatAddress(stop)) || '—' %></div>
+                                  <% }); %>
+                                <% } %>
+                                <div><span class="route-label">終點：</span><%= (r.dest && formatAddress(r.dest)) || '—' %></div>
+                              </div>
+                              <% if (hasSegments) { %>
+                                <ul class="debug-list trip-segment-detail">
+                                  <% tripDebug.segments.forEach(function(seg) { %>
+                                    <li>
+                                      <% const segLabel = (formatAddressStr(seg.fromAddress || '') + ' ~ ' + formatAddressStr(seg.toAddress || '')).trim() || (seg.type === 'to_pickup' ? '移動到上車點' : '載客行程'); %>
+                                      <strong>[<%= segLabel %>]</strong> <%= formatTime(seg.startTime) %> → <%= formatTime(seg.endTime) %><br>
+                                      距離 <%= seg.distanceKm.toFixed(1) %> km，約 <%= formatMinutes(seg.durationSec) %> 分鐘，
+                                      <% if (seg.batteryBeforeKm != null && seg.batteryAfterKm != null) { %>
+                                        原剩餘續航 <%= seg.batteryBeforeKm.toFixed(1) %> km，剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                      <% } else if (seg.batteryAfterKm != null) { %>
+                                        剩餘續航 <%= seg.batteryAfterKm.toFixed(1) %> km
+                                      <% } %><br>
+                                      <% const effectiveSpeedKmh = seg.durationSec > 0 ? (seg.distanceKm / (seg.durationSec / 3600)) : 0; %>
+                                      | 套用時速：<%= (seg.estimatedSpeedKmh != null ? seg.estimatedSpeedKmh.toFixed(1) : effectiveSpeedKmh.toFixed(1)) %> km/h<br>
+                                      | 區域加成：<%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分鐘<br>
+                                      | 尖峰加成：<%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分鐘<br>
+                                      <% const baseMinutes = seg.baseDurationSec != null ? Math.round(seg.baseDurationSec / 60) : formatMinutes(seg.durationSec); %>
+                                      | 時間運算過程：<%= baseMinutes %> 分（行程耗時） + <%= seg.regionMinutes != null ? seg.regionMinutes : 0 %> 分（區域） + <%= seg.hourFactorMinutes != null ? seg.hourFactorMinutes : 0 %> 分（尖峰/離峰）<br>
+                                      <% if (seg.extraDurationSec != null && seg.extraDurationSec > 0) { %>
+                                        | 額外消耗時間：<%= formatMinutes(seg.extraDurationSec) %> 分鐘（<%= seg.extraReason || '' %>）
+                                      <% } else { %>
+                                        | 額外消耗時間：<%= seg.extraReason || '—' %>
+                                      <% } %>
+                                    </li>
+                                  <% }); %>
+                                </ul>
+                              <% } else { %>
+                                <p class="muted" style="margin:6px 0 0 0; font-size:11px;">此行程暫無運算明細</p>
+                              <% } %>
+                            </details>
+                          </div>
+                          <% } %>
+                        <% }); %>
+                        <% if (dbg && dbg.totalDistanceKm != null) { %>
+                          <div class="muted" style="margin-top:6px;">
+                            當日總行駛約 <%= dbg.totalDistanceKm.toFixed(1) %> km，總時間約 <%= dbg.totalDrivingMinutes %> 分鐘
+                          </div>
+                        <% } %>
+                      <% } else { %>
+                        <span class="muted">尚未安排行程</span>
+                      <% } %>
+                    </div>
+                  </div>
+                <% }); %>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="card" style="border:1.5px solid #fecaca; border-radius:14px; overflow:hidden;">
+          <div style="background:#fef2f2; padding:14px 20px 10px; border-bottom:1px solid #fecaca; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h2 style="margin:0; font-size:16px; color:#991b1b;">未分配預約</h2>
+              <% if (result.unassigned && result.unassigned.length > 0) { %>
+                <p style="margin:3px 0 0; font-size:12px; color:#b91c1c;">
+                  共 <strong><%= result.unassigned.length %></strong> 筆未能安排駕駛，建議檢查班表、車種或電量設定
+                </p>
+              <% } %>
+            </div>
+            <% if (result.unassigned && result.unassigned.length > 0) { %>
+              <span style="background:#dc2626; color:#fff; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700;"><%= result.unassigned.length %></span>
+            <% } %>
+          </div>
+          <div style="padding:14px 20px;">
+            <% if (!result.unassigned || result.unassigned.length === 0) { %>
+              <p class="muted" style="margin:0;">目前沒有未分配的預約。</p>
+            <% } else { %>
+              <%
+                var sortedUnassigned = [].concat(result.unassigned).sort(function(a, b) {
+                  return (a.reservationTime || 0) - (b.reservationTime || 0);
+                });
+              %>
+              <div class="unassigned-list">
+                <% sortedUnassigned.forEach(function(u) { %>
+                  <div class="unassigned-item">
+                    <div class="ua-time"><%= formatTime(u.reservationTime) %></div>
+                    <div class="ua-route">
+                      <div class="ua-origin"><%= formatAddress(u.origin) || (u.origin && (u.origin.name || u.origin.address)) || '起點' %></div>
+                      <div style="display:flex; align-items:center; gap:4px;">
+                        <span class="ua-arrow">→</span>
+                        <span class="ua-dest"><%= formatAddress(u.dest) || (u.dest && u.dest.address) || '終點' %></span>
+                      </div>
+                    </div>
+                    <div class="ua-meta">
+                      <span class="ua-badge ua-badge-vehicle"><%= formatVehicleType(u.requiredVehicleType || u.vehicleType) %></span>
+                      <% if (u.passenger && u.passenger.name) { %>
+                        <span class="ua-badge ua-badge-passenger"><%= u.passenger.name %></span>
+                      <% } %>
+                      <% if (u.passenger && u.passenger.enterpriseName) { %>
+                        <span class="ua-badge ua-badge-enterprise"><%= u.passenger.enterpriseName %></span>
+                      <% } %>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</html>
+

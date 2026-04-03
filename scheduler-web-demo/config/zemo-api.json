@@ -1,0 +1,9 @@
+{
+  "reservationEndpoint": "/api/reservation/records",
+  "userListEndpoint": "/api/user/getUserList",
+  "scheduleAndLeaveEndpoint": "/api/driver/getDriversScheduleAndLeave",
+  "authHeaderName": "",
+  "authHeaderValue": "",
+  "timezone": "Asia/Taipei"
+}
+

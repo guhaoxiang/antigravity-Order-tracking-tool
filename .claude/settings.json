@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(grep -r \"slack\\\\|supabase\\\\|webhook\" /c/Users/郭皓翔/Desktop/Antigravity-單量追蹤工具 --include=*.js --include=*.json)",
+      "Bash(node test/unit-tests.js)",
+      "Bash(node test/pause-periods-accuracy.js 2026-04-01)",
+      "Bash(node test/debug-zhu-0401.js)",
+      "Bash(node -e ':*)",
+      "Bash(npm install:*)",
+      "Bash(node test/insertable-slots-stress.js --verbose)",
+      "Bash(time node:*)",
+      "Bash(node -e \"console.log\\('node ok'\\)\")",
+      "Bash(node index.js --dry-run --days=1)",
+      "Read(//c/Users/郭皓翔/.claude/**)",
+      "Bash(grep -E \"\\\\.\\(js|md\\)$\")",
+      "Bash(gh auth:*)",
+      "Bash(git config:*)",
+      "Bash(gcloud --version)",
+      "Bash(gcloud auth:*)",
+      "Bash(gcloud config:*)",
+      "Bash(docker --version)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\郭皓翔\\Desktop\\Antigravity-單量追蹤工具\\.claude"
+    ]
+  }
+}

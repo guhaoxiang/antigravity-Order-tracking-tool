@@ -1,0 +1,162 @@
+const USER_TYPE = {
+	PASSENGER: 1,
+	DRIVER: 2,
+};
+
+const VEHICLE_TYPE = {
+	STANDARD: "STANDARD",
+	LARGE: "LARGE",
+};
+const ENUM_RESERVATION_STATUS = {
+	WAITING: 1,
+	FINISHED: 2,
+	CANCEL: 3,
+
+	// The passenger is in the car toward the destination.
+	IN_PROGRESS: 4,
+
+	// The reservation is confirmed and has a driver assigned.
+	BOOKED: 5,
+
+	// The reservation does not have a driver assigned yet.
+	UNASSIGNED: 6,
+
+	// The reservation was cancelled after a driver was already assgined.
+	BOOKED_CANCELLED: 7,
+
+	// The reservation was cancelled when there was no driver assgined.
+	UNASSIGNED_CANCELLED: 8,
+
+	// Timeout while the reservation is waiting to be accepted by a driver.
+	WAITING_TIMEOUT: 9,
+
+	// Outsourced to non-Zemo driver.
+	OUTSOURCED: 10,
+
+	// Rejected due to capacity limitation.
+	REJECTED: 11,
+
+	// Driver reached the reservation origin, but passenger couldn't make it.
+	NO_SHOW: 12,
+
+	// The reservation is waiting to be scheduled.
+	PENDING_SCHEDULE: 13,
+};
+const ENUM_RESERVATION_TYPE = {
+	REALTIME: 0,
+	BOOKING: 1,
+};
+const ENUM_ENTERPRISE_STATUS = {
+	ACTIVE: 1,
+	ARCHIVED: 0,
+};
+const ENUM_RESERVATION_LOG_TYPE = {
+	MATCH: 1,
+	TAKE: 2,
+	FINISH: 3,
+};
+const ENUM_RESERVATION_STATS_TYPE = {
+	WORKING_TIME: 1,
+	FREE_TIME: 2,
+};
+const ENUM_RESERVATION_LOCATION_TYPE = {
+	UNSPECIFIED: "UNSPECIFIED",
+	INTRA_CITY: "INTRA_CITY",
+	AIRPORT_ARRIVAL: "AIRPORT_ARRIVAL",
+	AIRPORT_DEPARTURE: "AIRPORT_DEPARTURE",
+};
+const ENUM_AIRPORT_CODE = {
+	UNSPECIFIED: 0,
+	TPE: 1,
+	TSA: 2,
+	KHH: 3,
+};
+const ENUM_MESSAGE_TYPE = {
+	DRIVER_ARRIVE: 1,
+};
+const ENUM_SCHEDULE_TYPE = {
+	FIXED: 1,
+	GRAPH: 2,
+	GRAPH_WITH_DRIVER_SHIFT: 3,
+};
+const ENUM_REGION = {
+	UNDEFINED: 0,
+	TAIPEI_PROPER: 1,
+	TAOYUAN: 2,
+	HSINCHU: 4,
+	KEELUNG: 5,
+	YILAN: 6,
+	MIAOLI: 7,
+	TAICHUNG: 8,
+	OTHER: 3,
+};
+const ENUM_DISTANCE_EXTRA = {
+	UNDEFINED: 0,
+	LEVEL_1: 1,
+	LEVEL_2: 2,
+	LEVEL_3: 3,
+	LEVEL_4: 4,
+};
+const ENUM_TPE_DISTANCE_EXTRA = {
+	UNDEFINED: 0,
+	ZONE_1: 1,
+	ZONE_2: 2,
+	ZONE_3: 3,
+	ZONE_4: 4,
+	ZONE_5: 5,
+	ZONE_MINUS: 100,
+};
+const ENUM_TSA_DISTANCE_EXTRA = {
+	UNDEFINED: 0,
+	ZONE_1: 1,
+	ZONE_2: 2,
+	ZONE_3: 3,
+	ZONE_4: 4,
+	ZONE_5: 5,
+};
+
+const ENUM_CALLOUT_STATUS = {
+	ANSWERED: "answered",
+	REJECT: "reject",
+	BUSY: "busy",
+	TIMEOUT: "timeout",
+	NOTFOUND: "notfound",
+	FAILED: "failed",
+	SKIPPED: "skipped",
+};
+
+const ENUM_VEHICLE_DATA_TYPE = {
+	ARRIVAL: "ARRIVAL",
+	FINISH: "FINISH",
+};
+
+const ENUM_ALERT_TYPE = {
+	INSUFFICIENT_TIME_TO_RESERVATION: "INSUFFICIENT_TIME_TO_RESERVATION",
+};
+
+const ENUM_ASSIGNMENT_UPDATE_INSTRUCTION = {
+	DO_NOT_UPDATE_ASSIGNMENTS: "DO_NOT_UPDATE_ASSIGNMENTS",
+	UPDATE_ASSIGNMENTS: "UPDATE_ASSIGNMENTS",
+};
+
+module.exports = {
+	USER_TYPE,
+	VEHICLE_TYPE,
+	ENUM_RESERVATION_STATUS,
+	ENUM_RESERVATION_TYPE,
+	ENUM_ENTERPRISE_STATUS,
+	ENUM_RESERVATION_LOG_TYPE,
+	ENUM_RESERVATION_STATS_TYPE,
+	ENUM_RESERVATION_LOCATION_TYPE,
+	ENUM_AIRPORT_CODE,
+	ENUM_MESSAGE_TYPE,
+	ENUM_SCHEDULE_TYPE,
+	ENUM_REGION,
+	ENUM_DISTANCE_EXTRA,
+	ENUM_TPE_DISTANCE_EXTRA,
+	ENUM_TSA_DISTANCE_EXTRA,
+	ENUM_CALLOUT_STATUS,
+	ENUM_VEHICLE_DATA_TYPE,
+	ENUM_ALERT_TYPE,
+	ENUM_ASSIGNMENT_UPDATE_INSTRUCTION,
+};

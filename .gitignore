@@ -1,0 +1,25 @@
+# 依賴套件
+node_modules/
+
+# 環境變數（含 secrets，絕對不可上傳）
+.env
+.env.local
+.env.*.local
+
+# 日誌與除錯
+*.log
+debug_dump.txt
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 測試產出
+coverage/
+
+# zemo-api（私有 repo，不上傳；Docker build 從本機複製）
+zemo-api/
