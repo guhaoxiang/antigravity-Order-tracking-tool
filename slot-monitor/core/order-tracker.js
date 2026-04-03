@@ -21,6 +21,10 @@ function findNewOrdersInPausedZones(reservations, pausePeriodsMap, prevOrderIdsM
       // 跳過已知的訂單
       if (prevIds.has(String(r.id))) continue;
 
+      // 根據訂單車型過濾：只比對對應類別
+      const orderVehicle = r.requiredVehicleType; // "STANDARD" / "LARGE" / null
+      if (orderVehicle && orderVehicle !== cat.vehicleType) continue;
+
       const t = r.reservationTime;
       // 檢查是否落入暫停段
       for (const p of pauses) {

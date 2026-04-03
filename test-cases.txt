@@ -1,0 +1,232 @@
+═══════════════════════════════════════════════════════════════
+  antigravity-Order-tracking-tool 測試案例
+  建立日期: 2026-04-03
+  最後更新: 2026-04-03
+═══════════════════════════════════════════════════════════════
+
+本文件供 AI 或開發者在每次部署前執行，驗證系統功能正確。
+所有測試指令都在專案根目錄下執行。
+
+
+───────────────────────────────────────────────────────────────
+  前置條件
+───────────────────────────────────────────────────────────────
+
+1. 確保 .env 已建立（參考 .env.example）
+2. 確保依賴已安裝：
+   npm install
+   cd scheduler-web-demo && npm install && cd ..
+   cd slot-monitor && npm install && cd ..
+
+
+═══════════════════════════════════════════════════════════════
+  TEST A: 外部服務連線測試
+═══════════════════════════════════════════════════════════════
+
+--- A1: Supabase 連線 ---
+指令:
+  node -e "
+    require('dotenv').config();
+    const { getConfig } = require('./scheduler-web-demo/core/env-config');
+    try {
+      const cfg = getConfig();
+      console.log('PASS: Supabase 連線成功, estimatedSpeedKmh=' + cfg.estimatedSpeedKmh);
+    } catch(e) {
+      console.log('FAIL: ' + e.message);
+    }
+  "
+預期: PASS: Supabase 連線成功, estimatedSpeedKmh=15
+
+
+--- A2: Slack Bot Token 驗證 ---
+指令:
+  node -e "
+    require('dotenv').config();
+    const axios = require('axios');
+    axios.post('https://slack.com/api/auth.test', {}, {
+      headers: { Authorization: 'Bearer ' + process.env.SLACK_BOT_TOKEN }
+    }).then(r => {
+      if (r.data.ok) console.log('PASS: Slack Token 有效, team=' + r.data.team);
+      else console.log('FAIL: ' + r.data.error);
+    }).catch(e => console.log('FAIL: ' + e.message));
+  "
+預期: PASS: Slack Token 有效, team=ZEMO
+
+
+--- A3: Slack Channel 存取 ---
+指令:
+  node -e "
+    require('dotenv').config();
+    const axios = require('axios');
+    axios.get('https://slack.com/api/conversations.info?channel=' + process.env.SLACK_CHANNEL_ID, {
+      headers: { Authorization: 'Bearer ' + process.env.SLACK_BOT_TOKEN }
+    }).then(r => {
+      if (r.data.ok) console.log('PASS: Channel=#' + r.data.channel.name + ', is_member=' + r.data.channel.is_member);
+      else console.log('FAIL: ' + r.data.error);
+    }).catch(e => console.log('FAIL: ' + e.message));
+  "
+預期: PASS: Channel=#提醒測試用, is_member=true
+
+
+═══════════════════════════════════════════════════════════════
+  TEST B: 車型過濾邏輯（單元測試）
+═══════════════════════════════════════════════════════════════
+
+測試對象: slot-monitor/core/order-tracker.js → findNewOrdersInPausedZones()
+
+執行指令:
+  node -e "
+    const { findNewOrdersInPausedZones } = require('./slot-monitor/core/order-tracker');
+    const moment = require('moment-timezone');
+    const TZ = 'Asia/Taipei';
+    let passed = 0, failed = 0;
+
+    function assert(name, cond) {
+      if (cond) { console.log('  PASS: ' + name); passed++; }
+      else { console.log('  FAIL: ' + name); failed++; }
+    }
+
+    const CATEGORIES = [
+      { key: 'STANDARD_dropoff', label: '五人座送機', vehicleType: 'STANDARD', tripType: 'dropoff' },
+      { key: 'STANDARD_pickup',  label: '五人座接機', vehicleType: 'STANDARD', tripType: 'pickup' },
+      { key: 'LARGE_dropoff',    label: '七人座送機', vehicleType: 'LARGE',    tripType: 'dropoff' },
+      { key: 'LARGE_pickup',     label: '七人座接機', vehicleType: 'LARGE',    tripType: 'pickup' },
+    ];
+
+    const ps = moment.tz('2026-04-10 14:00', TZ).unix();
+    const pe = moment.tz('2026-04-10 16:00', TZ).unix();
+    const pauseMap = {
+      STANDARD_dropoff: [{ start: ps, end: pe }],
+      STANDARD_pickup:  [{ start: ps, end: pe }],
+      LARGE_dropoff:    [{ start: ps, end: pe }],
+      LARGE_pickup:     [{ start: ps, end: pe }],
+    };
+    const noPrev = { STANDARD_dropoff: [], STANDARD_pickup: [], LARGE_dropoff: [], LARGE_pickup: [] };
+
+    // B1: STANDARD 訂單只觸發 STANDARD
+    console.log('B1: STANDARD 訂單只觸發 STANDARD 類別');
+    var r = findNewOrdersInPausedZones(
+      [{ id: 1001, reservationTime: ps+1800, requiredVehicleType: 'STANDARD' }],
+      pauseMap, noPrev, CATEGORIES);
+    assert('STANDARD_dropoff 有 #1001', r.STANDARD_dropoff.length === 1);
+    assert('STANDARD_pickup 有 #1001', r.STANDARD_pickup.length === 1);
+    assert('LARGE_dropoff 無觸發', r.LARGE_dropoff.length === 0);
+    assert('LARGE_pickup 無觸發', r.LARGE_pickup.length === 0);
+
+    // B2: LARGE 訂單只觸發 LARGE
+    console.log('B2: LARGE 訂單只觸發 LARGE 類別');
+    r = findNewOrdersInPausedZones(
+      [{ id: 2001, reservationTime: ps+1800, requiredVehicleType: 'LARGE' }],
+      pauseMap, noPrev, CATEGORIES);
+    assert('STANDARD_dropoff 無觸發', r.STANDARD_dropoff.length === 0);
+    assert('STANDARD_pickup 無觸發', r.STANDARD_pickup.length === 0);
+    assert('LARGE_dropoff 有 #2001', r.LARGE_dropoff.length === 1);
+    assert('LARGE_pickup 有 #2001', r.LARGE_pickup.length === 1);
+
+    // B3: null 車型觸發全部
+    console.log('B3: null 車型觸發所有類別');
+    r = findNewOrdersInPausedZones(
+      [{ id: 3001, reservationTime: ps+1800, requiredVehicleType: null }],
+      pauseMap, noPrev, CATEGORIES);
+    assert('STANDARD_dropoff 有 #3001', r.STANDARD_dropoff.length === 1);
+    assert('STANDARD_pickup 有 #3001', r.STANDARD_pickup.length === 1);
+    assert('LARGE_dropoff 有 #3001', r.LARGE_dropoff.length === 1);
+    assert('LARGE_pickup 有 #3001', r.LARGE_pickup.length === 1);
+
+    // B4: 訂單不在暫停時段內
+    console.log('B4: 訂單時間不在暫停時段，不觸發');
+    r = findNewOrdersInPausedZones(
+      [{ id: 4001, reservationTime: ps-3600, requiredVehicleType: 'STANDARD' }],
+      pauseMap, noPrev, CATEGORIES);
+    assert('全部類別無觸發', r.STANDARD_dropoff.length === 0 && r.LARGE_dropoff.length === 0);
+
+    // B5: 已知訂單不重複通知
+    console.log('B5: 已知訂單不重複觸發');
+    r = findNewOrdersInPausedZones(
+      [{ id: 5001, reservationTime: ps+1800, requiredVehicleType: 'STANDARD' }],
+      pauseMap, { STANDARD_dropoff: ['5001'], STANDARD_pickup: ['5001'], LARGE_dropoff: [], LARGE_pickup: [] },
+      CATEGORIES);
+    assert('STANDARD_dropoff 無觸發（已知）', r.STANDARD_dropoff.length === 0);
+
+    // B6: 混合訂單正確分流
+    console.log('B6: 多筆混合訂單正確分流');
+    r = findNewOrdersInPausedZones([
+      { id: 6001, reservationTime: ps+600,  requiredVehicleType: 'STANDARD' },
+      { id: 6002, reservationTime: ps+1200, requiredVehicleType: 'LARGE' },
+      { id: 6003, reservationTime: ps+1800, requiredVehicleType: null },
+    ], pauseMap, noPrev, CATEGORIES);
+    assert('STANDARD_dropoff 有 2 筆 (#6001,#6003)', r.STANDARD_dropoff.length === 2);
+    assert('LARGE_dropoff 有 2 筆 (#6002,#6003)', r.LARGE_dropoff.length === 2);
+    assert('STANDARD 不含 #6002', !r.STANDARD_dropoff.find(o => o.id === 6002));
+    assert('LARGE 不含 #6001', !r.LARGE_dropoff.find(o => o.id === 6001));
+
+    console.log('');
+    console.log('結果: ' + passed + ' passed, ' + failed + ' failed');
+    process.exit(failed > 0 ? 1 : 0);
+  "
+
+預期: 20 passed, 0 failed
+
+
+═══════════════════════════════════════════════════════════════
+  TEST C: Dry-Run 整合測試（不發送通知）
+═══════════════════════════════════════════════════════════════
+
+--- C1: 基本 dry-run（1天）---
+指令:
+  node slot-monitor/index.js --dry-run --days=1
+
+預期輸出包含:
+  - "模式: DRY RUN"
+  - "日期範圍: 明天起 1 天"
+  - "預載駕駛資料" 且駕駛數 > 0
+  - "1/1 天完成"
+  - "完成：1 天成功，0 天失敗"
+  - 程式正常退出（exit code 0）
+
+
+--- C2: 多天 dry-run（5天）---
+指令:
+  node slot-monitor/index.js --dry-run --days=5
+
+預期:
+  - "5/5 天完成"
+  - "完成：5 天成功，0 天失敗"
+  - 程式正常退出（exit code 0）
+
+
+═══════════════════════════════════════════════════════════════
+  TEST D: Cloud Run 部署驗證
+═══════════════════════════════════════════════════════════════
+
+--- D1: 確認服務狀態 ---
+指令:
+  gcloud run services describe slot-monitor --region asia-east1 --format="value(status.url)"
+
+預期: 回傳有效的 URL（https://slot-monitor-*.run.app）
+
+
+--- D2: Health Check ---
+指令:
+  curl -s https://slot-monitor-302890386048.asia-east1.run.app/health
+
+預期: 回傳 200 OK 或 {"status":"ok"} 類似的回應
+
+
+═══════════════════════════════════════════════════════════════
+  測試結果摘要模板
+═══════════════════════════════════════════════════════════════
+
+日期: ____-__-__
+執行者: __________
+
+  A1 Supabase 連線:     [ PASS / FAIL ]
+  A2 Slack Token:       [ PASS / FAIL ]
+  A3 Slack Channel:     [ PASS / FAIL ]
+  B  車型過濾 (20項):   [ __ / 20 passed ]
+  C1 Dry-run 1天:       [ PASS / FAIL ]
+  C2 Dry-run 5天:       [ PASS / FAIL ]
+  D1 Cloud Run 狀態:    [ PASS / FAIL ]
+  D2 Health Check:      [ PASS / FAIL ]
+
+備註:
