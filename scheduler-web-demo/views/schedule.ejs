@@ -473,9 +473,10 @@
         const debugByDriver = result.debug || {};
         function formatTime(ts) {
           if (!ts) return "";
-          const d = new Date(ts * 1000);
-          const hh = String(d.getHours()).padStart(2, "0");
-          const mm = String(d.getMinutes()).padStart(2, "0");
+          // 強制使用 Asia/Taipei (UTC+8)，避免 Cloud Run (UTC) 時區偏移
+          const d = new Date((ts + 8 * 3600) * 1000);
+          const hh = String(d.getUTCHours()).padStart(2, "0");
+          const mm = String(d.getUTCMinutes()).padStart(2, "0");
           return hh + ":" + mm;
         }
         function formatMinutes(sec) {
