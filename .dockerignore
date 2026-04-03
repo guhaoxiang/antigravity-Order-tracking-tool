@@ -1,17 +1,15 @@
-# Cloud Run 部署時排除的檔案
-
 .git/
 .github/
 .claude/
 .vscode/
 .idea/
 
-# 環境變數（Cloud Run 用環境變數注入，不需要檔案）
+# 環境變數（Cloud Run 用環境變數注入）
 .env
 .env.local
 .env.*.local
 
-# node_modules（Cloud Build 會重新 npm install）
+# node_modules（Docker build 會重新 npm install）
 node_modules/
 scheduler-web-demo/node_modules/
 slot-monitor/node_modules/
