@@ -189,10 +189,10 @@ console.log("\n▶ Test 4: diffPausePeriods");
   assert(d3.hasChanges === true, "縮短有變更");
   assert(d3.removed.length === 1, "移除 1 段");
   assert(d3.added.length === 0, "無新增");
-  // 移除的是 08:02~09:15
+  // 移除的是 08:03~09:15（退讓 1 分鐘避免與 curr 結尾 08:02 重疊）
   const removedStart = d3.removed[0].start;
   const removedEnd = d3.removed[0].end;
-  assert(removedStart === at(8, 2), "移除段起點 08:02");
+  assert(removedStart === at(8, 3), "移除段起點 08:03（退讓避免與 08:02 重疊）");
   assert(removedEnd <= at(9, 16), "移除段終點 ≤ 09:16");
 
   // 4d. 新增暫停段
@@ -216,6 +216,46 @@ console.log("\n▶ Test 4: diffPausePeriods");
   assert(d6.hasChanges === true, "同時新增+移除");
   assert(d6.removed.length === 1, "移除 1 段 (08~09)");
   assert(d6.added.length === 1, "新增 1 段 (10~11)");
+
+  // 4g. 邊界不重疊：暫停段尾部擴展（04:01~10:38 → 04:01~11:21）
+  //     added 起點應為 10:39 而非 10:38，避免與前段 end 10:38 重疊
+  const prev4 = [{ start: at(4, 1), end: at(10, 38) }];
+  const curr4 = [{ start: at(4, 1), end: at(11, 21) }];
+  const d7 = diffPausePeriods(prev4, curr4, DAY_START);
+  assert(d7.hasChanges === true, "尾部擴展有變更");
+  assert(d7.added.length === 1, "新增 1 段");
+  assert(d7.added[0].start === at(10, 39), "新增段起點應為 10:39（退讓 1 分鐘避免與 10:38 重疊）");
+  assert(d7.added[0].end === at(11, 21), "新增段終點 11:21 不變");
+  assert(d7.removed.length === 0, "無移除段");
+
+  // 4h. 邊界不重疊：暫停段頭部擴展（10:38~11:21 → 10:00~11:21）
+  //     added 終點應為 10:37 而非 10:38
+  const prev5 = [{ start: at(10, 38), end: at(11, 21) }];
+  const curr5 = [{ start: at(10, 0), end: at(11, 21) }];
+  const d8 = diffPausePeriods(prev5, curr5, DAY_START);
+  assert(d8.hasChanges === true, "頭部擴展有變更");
+  assert(d8.added.length === 1, "新增 1 段");
+  assert(d8.added[0].start === at(10, 0), "新增段起點 10:00 不變");
+  assert(d8.added[0].end === at(10, 37), "新增段終點應為 10:37（退讓 1 分鐘避免與 10:38 重疊）");
+
+  // 4i. 邊界不重疊：暫停段縮短（04:01~11:21 → 04:01~10:38）
+  //     removed 起點應為 10:39 而非 10:38
+  const prev6 = [{ start: at(4, 1), end: at(11, 21) }];
+  const curr6 = [{ start: at(4, 1), end: at(10, 38) }];
+  const d9 = diffPausePeriods(prev6, curr6, DAY_START);
+  assert(d9.hasChanges === true, "縮短有變更");
+  assert(d9.removed.length === 1, "移除 1 段");
+  assert(d9.removed[0].start === at(10, 39), "移除段起點應為 10:39（退讓 1 分鐘避免與 10:38 重疊）");
+  assert(d9.removed[0].end === at(11, 21), "移除段終點 11:21 不變");
+  assert(d9.added.length === 0, "無新增段");
+
+  // 4j. 非相鄰段不退讓：完全獨立的新增段不應被調整
+  const prev7 = [{ start: at(4), end: at(6) }];
+  const curr7 = [{ start: at(4), end: at(6) }, { start: at(10), end: at(12) }];
+  const d10 = diffPausePeriods(prev7, curr7, DAY_START);
+  assert(d10.added.length === 1, "獨立新增 1 段");
+  assert(d10.added[0].start === at(10), "獨立段起點 10:00 不退讓");
+  assert(d10.added[0].end === at(12), "獨立段終點 12:00 不退讓");
 })();
 
 // ════════════════════════════════════════════════
@@ -308,7 +348,7 @@ console.log("\n▶ Test 6: Slack 訊息格式化（合併版）");
   }
   const msgs5 = formatCombinedNewNotifications({ "七人座送機": manyPeriods });
   assert(msgs5.length > 1, `大量暫停段應分割(got ${msgs5.length}則)`);
-  assert(msgs5[0].includes("(1/"), "第一則有分頁標記");
+  assert(msgs5[0].includes("報單警告"), "第一則包含標題 header");
 })();
 
 // ════════════════════════════════════════════════

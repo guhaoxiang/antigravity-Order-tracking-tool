@@ -90,8 +90,33 @@ function diffPausePeriods(prevPeriods, currPeriods, dayStartUnix) {
     if (!prevSet.has(m)) addedMinutes.add(m);
   }
 
-  const removed = mergeMinutesToPeriods(removedMinutes, dayStartUnix);
-  const added = mergeMinutesToPeriods(addedMinutes, dayStartUnix);
+  const rawRemoved = mergeMinutesToPeriods(removedMinutes, dayStartUnix);
+  const rawAdded = mergeMinutesToPeriods(addedMinutes, dayStartUnix);
+
+  // ── 邊界退讓：避免 added/removed 時段與已有時段共享邊界分鐘 ──
+  // 例如：前次通知 04:01~10:38，新增段應從 10:39 起而非 10:38
+  function adjustBoundaries(periods, otherSet) {
+    return periods
+      .map((p) => {
+        const adjusted = { start: p.start, end: p.end };
+        const startMin = Math.round((p.start - dayStartUnix) / 60);
+        const endMin = Math.round((p.end - dayStartUnix) / 60);
+
+        // start 的前一分鐘仍在對方集合 → 退讓 1 分鐘避免重疊
+        if (startMin > 0 && otherSet.has(startMin - 1)) {
+          adjusted.start += 60;
+        }
+        // end 分鐘恰在對方集合 → 退讓 1 分鐘避免重疊
+        if (endMin < 1440 && otherSet.has(endMin)) {
+          adjusted.end -= 60;
+        }
+        return adjusted;
+      })
+      .filter((p) => p.start < p.end); // 退讓後可能變無效，過濾掉
+  }
+
+  const added = adjustBoundaries(rawAdded, prevSet);
+  const removed = adjustBoundaries(rawRemoved, currSet);
 
   return {
     isNew: false,
