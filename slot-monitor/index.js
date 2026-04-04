@@ -17,7 +17,7 @@ const { findNewOrdersInPausedZones } = require("./core/order-tracker");
 
 const { prefetchDriverData, fetchReservationsWithPrefetchedDrivers } = require("../scheduler-web-demo/core/zemo-client");
 const { runSchedule } = require("../scheduler-web-demo/core/scheduler-engine");
-const { getConfig } = require("../scheduler-web-demo/core/env-config");
+const { getConfig, loadFromSupabase } = require("../scheduler-web-demo/core/env-config");
 
 function applyGeoConfigToProcessEnv(cfg) {
   if (cfg.geoRushHourMinutes != null) process.env.GEO_RUSH_HOUR_MINUTES = String(cfg.geoRushHourMinutes);
@@ -81,6 +81,8 @@ async function main() {
   console.log(`  開始時間: ${moment().tz(config.TIMEZONE).format("YYYY-MM-DD HH:mm:ss")}`);
   console.log("══════════════════════════════════════════════");
 
+  // 確保 Supabase 設定已載入完成（避免 race condition 導致讀到空的 baseline config）
+  await loadFromSupabase();
   const demoConfig = getConfig();
   applyGeoConfigToProcessEnv(demoConfig);
 
