@@ -161,7 +161,10 @@ function formatCombinedOrderAlertNotifications(ordersByCategory) {
     lines.push("");
     lines.push(`[ ${label} ]`);
     for (const o of orders) {
-      lines.push(`#${o.id} ${fmtDatetime(o.reservationTime)}`);
+      const pauseRange = o.pausePeriod
+        ? `（所屬暫停段：${fmtDatetime(o.pausePeriod.start)} ~ ${fmtDatetime(o.pausePeriod.end)}）`
+        : "";
+      lines.push(`#${o.id} ${fmtDatetime(o.reservationTime)}${pauseRange}`);
     }
   }
 

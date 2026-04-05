@@ -175,8 +175,11 @@ async function main() {
         }
 
         if (!diff.isNew) {
+          // 用「舊的」暫停段做偵測與顯示，因為使用者是依上次通知的暫停段
+          // 在後台設定暫停銷售；此通知要幫助他確認既有設定是否已涵蓋新訂單。
           const prevOrderIdsMap = { [cat.key]: prevOrderIds };
-          const newOrdersMap = findNewOrdersInPausedZones(reservations, pausePeriodsMap, prevOrderIdsMap, [cat]);
+          const prevPausesMap = { [cat.key]: prevPauses || [] };
+          const newOrdersMap = findNewOrdersInPausedZones(reservations, prevPausesMap, prevOrderIdsMap, [cat]);
           const newOrders = newOrdersMap[cat.key] || [];
           if (newOrders.length > 0) {
             if (!orderAlertsByCategory[cat.label]) orderAlertsByCategory[cat.label] = [];
@@ -199,19 +202,21 @@ async function main() {
   console.log("");
 
   // ── 階段二：統一發送 Slack 通知 ──
+  // 優先順序：訂單異動 → 報單警告（新增暫停段）→ 暫停銷售變更
+  // 訂單異動最急迫（已有暫停段卻仍有訂單進來），放最前面。
   const allMessages = [];
 
-  // 報單警告（首次）
+  // 訂單異動（最優先）
+  const orderMsgs = formatCombinedOrderAlertNotifications(orderAlertsByCategory);
+  allMessages.push(...orderMsgs);
+
+  // 報單警告（首次/新增暫停段）
   const newMsgs = formatCombinedNewNotifications(newPeriodsByCategory);
   allMessages.push(...newMsgs);
 
   // 暫停銷售變更
   const changedMsgs = formatCombinedChangedNotifications(changedRemovedByCategory, changedAddedByCategory);
   allMessages.push(...changedMsgs);
-
-  // 訂單異動
-  const orderMsgs = formatCombinedOrderAlertNotifications(orderAlertsByCategory);
-  allMessages.push(...orderMsgs);
 
   // 如果處理過程有錯誤，也要回報
   if (errorCount > 0 && !dryRun) {

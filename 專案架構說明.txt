@@ -1,0 +1,594 @@
+═══════════════════════════════════════════════════════════════════════
+  antigravity-Order-tracking-tool 專案架構與邏輯說明（給 AI 閱讀）
+  產出日期：2026-04-05
+═══════════════════════════════════════════════════════════════════════
+
+本文件說明「暫停銷售自動通知系統」的整體架構、程式邏輯、設定項目。
+目標：讓後續 AI 不必重新讀完整份 code 即能快速理解專案並正確動刀。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 0. 一句話專案摘要                                                  ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+每 30 分鐘抓 Zemo 未來 30 天的訂單+駕駛班表 → 跑排程演算法 → 算出
+「此時段無駕駛可接單」的暫停銷售時段 → 與上次狀態比對差異 → 發 Slack。
+同時提供 Web UI 可調參數並模擬單日排程結果。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 1. 雙服務架構（共用一份 Docker image）                              ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  根目錄 server.js 讀 SERVICE_MODE 環境變數：
+    - SERVICE_MODE="web"  → 啟動 scheduler-web-demo（Express Web UI）
+    - 其他/未設            → 啟動 HTTP 觸發器，POST 後 spawn slot-monitor/index.js
+
+  服務 A：slot-monitor
+    - Cloud Scheduler 每 30 分鐘 POST 過來觸發
+    - Cloud Run 名稱：slot-monitor
+    - URL：https://slot-monitor-302890386048.asia-east1.run.app
+    - 有 running flag 防併發（上一次沒跑完回 429）
+    - execFile 呼叫子程序，單次最多 280 秒（server.js）
+    - 子程序自帶 PROCESS_TIMEOUT_MS（預設 5 分鐘）硬斷逾時
+
+  服務 B：scheduler-web-demo
+    - Express + EJS Web 介面
+    - Cloud Run 名稱：scheduler-web-demo
+    - URL：https://scheduler-web-demo-6wzphjjkxa-de.a.run.app
+    - 本地啟動：node start-web.js（http://localhost:4000）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 2. 目錄結構（重點檔案）                                            ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  antigravity-Order-tracking-tool/
+  ├── server.js                   Cloud Run 入口（SERVICE_MODE 路由）
+  ├── start-web.js                本地啟動 scheduler-web-demo
+  ├── Dockerfile                  node:20-slim，npm ci 三層
+  ├── package.json                根依賴（共用 axios/moment/supabase/express 等）
+  ├── DEPLOYMENT.txt              部署說明（原文件）
+  ├── CHANGELOG.md                2026-03-31、04-03 改動紀錄
+  ├── test-cases.txt              部署前驗證腳本
+  │
+  ├── slot-monitor/               【服務 A：暫停銷售監控】
+  │   ├── index.js                主流程（並行+批次+發通知+寫 state）
+  │   ├── config.js               讀 env 載入 CATEGORIES/TIMEZONE/SLACK 等
+  │   ├── setup.sql               建立 slot_monitor_state 資料表
+  │   └── core/
+  │       ├── slot-aggregator.js  取補集：可售→暫停段（退讓 1 分鐘）
+  │       ├── diff-engine.js      分鐘級集合差集（added/removed）
+  │       ├── slack-notifier.js   格式化+發送（分頁/重試/上限 20 則）
+  │       ├── supabase-state.js   getState/upsertState/cleanupOldDates/clearAll
+  │       └── order-tracker.js    找落在暫停段內的新訂單
+  │
+  └── scheduler-web-demo/         【服務 B：Web UI + 排程引擎】
+      ├── app.js                  Express、Session 登入、路由掛載
+      ├── setup.sql               建立 scheduler_config 資料表（id=1 單列）
+      ├── config/
+      │   ├── zemo-api.json       Zemo API endpoint/authHeader 設定
+      │   └── current-env.json    本地備份的 env 覆寫（非必要）
+      ├── routes/
+      │   ├── schedule.js         GET/POST / → 跑單日排程並渲染
+      │   └── settings.js         GET/POST 設定頁 + 手動觸發通知 + reset
+      ├── views/                  login.ejs、schedule.ejs、settings.ejs
+      ├── core/
+      │   ├── env-config.js       從 Supabase 載入 scheduler_config（id=1）
+      │   ├── zemo-baseline-config.js  預設參數 snapshot（重設時用）
+      │   ├── zemo-client.js      呼叫 Zemo 三支 API、組 driverShifts
+      │   ├── scheduler-engine.js 包裝 runSchedule() + 組 debug tree
+      │   └── insertable-slots.js 計算每位駕駛可塞入假行程的時間窗
+      ├── debug-*.js              （3 支）開發期單駕駛 debug 腳本
+      └── zemo-lib/               【從 zemo-api 複製的演算法核心】
+          ├── libs/               16 個 JS 檔、約 7000 行
+          │   ├── proximity.js         主演算法（距離最近分配）
+          │   ├── vehicle-routing.js   車型分流排程
+          │   ├── gap-filling.js       空檔填充
+          │   ├── geo.js               距離/行駛時間/機場範圍
+          │   ├── environment.js       env 參數集中管理
+          │   ├── reservation.js       預約工具（含 +20min buffer 修正）
+          │   ├── driver.js            班表扣請假
+          │   ├── charging.js          充電分析
+          │   └── ...（schedule-utils / logging / enum / helper 等）
+          └── constants/ 3 個（constants/enterprise/drivers）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 3. 核心資料流（slot-monitor 主循環）                                ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+slot-monitor/index.js main() 流程：
+
+  1) 啟動全域逾時器（PROCESS_TIMEOUT_MS=300000 強制退出）
+  2) 解析參數：
+       --reset     → clearAllState() 後退出
+       --dry-run   → 只印不發
+       --days=N    → 覆寫 DAYS_AHEAD
+  3) 從 Supabase 載入 scheduler_config（loadFromSupabase）
+     → 套用到 process.env（GEO_RUSH_HOUR_* 等）
+     → 若 config.slackChannelId 存在，覆蓋環境變數的 SLACK_CHANNEL_ID
+  4) 產生日期列表：明天起 daysAhead 天（YYYY-MM-DD，Asia/Taipei）
+  5) prefetchDriverData(first, last)：只呼叫一次 getUserList + getDriversScheduleAndLeave
+  6) 每批 5 天並行 Promise.allSettled，每天 withTimeout(60s)：
+       a. fetchReservationsWithPrefetchedDrivers(date, prefetched)
+            → 另打 reservation/records API 取預約
+            → 本地 buildDriverShiftsFromScheduleAndLeave 組當日班表（扣請假）
+       b. 無預約 → 所有分類空陣列
+       c. 有預約 → runSchedule(reservations, driverShifts, demoConfig)
+                → computePausePeriodsForDate(debug, driverShifts, date)
+  7) 逐日逐分類處理：
+       - 跟 Supabase 上次狀態比對：
+           prev 為 null → 首次（isNew=true）→ 進 newPeriodsByCategory
+           已有紀錄     → diff 出 added/removed → 進 changedXxxByCategory
+       - findNewOrdersInPausedZones：已存在紀錄時，找「新訂單落在暫停段內」
+           → 進 orderAlertsByCategory
+       - 有變更或訂單數變化 → 加入 stateUpdates 陣列
+  8) 發 Slack：
+       - formatCombinedNewNotifications（報單警告！）
+       - formatCombinedChangedNotifications（暫停銷售變更！）
+       - formatCombinedOrderAlertNotifications（訂單異動提醒！）
+       - 若有錯誤 → formatErrorNotification（系統異常）
+       - sendAllNotifications（間隔 1 秒、最多 20 則、失敗自動回報）
+  9) 寫回 Supabase（upsertState）
+ 10) cleanupOldDates(yesterday) 清理過期紀錄
+ 11) process.exit(errorCount > 0 ? 1 : 0)
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 4. 四個暫停銷售分類（關鍵概念）                                     ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+定義於 slot-monitor/config.js CATEGORIES：
+
+  key                  label        vehicleType   tripType
+  -------------------  ----------   -----------   --------
+  STANDARD_dropoff     五人座送機   STANDARD      dropoff
+  STANDARD_pickup      五人座接機   STANDARD      pickup
+  LARGE_dropoff        七人座送機   LARGE         dropoff
+  LARGE_pickup         七人座接機   LARGE         pickup
+
+  - 車型（STANDARD=五人座 / LARGE=七人座）
+  - 行程類型（dropoff=送機 / pickup=接機）
+  - 暫停段 = 該車種+該類型沒有任何駕駛能接單的時段
+
+  dummy trip 的起訖點寫死在 insertable-slots.js DUMMY_TRIPS：
+    dropoff：台北車站(25.0477,121.5162) → 桃園機場(25.0805,121.2311)
+    pickup ：桃園機場 → 台北車站（含 pickupBufferSec=50min / deadline 40min）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 5. 暫停段計算邏輯（slot-aggregator.js）                             ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+computePausePeriodsForDate(debug, driverShifts, dateStr) 步驟：
+
+  1) 當日營業時段：SALES_START_HOUR（預設 4） ~ 23:59
+  2) 依 driverShifts 建 driverId → vehicleType 對照表
+  3) 判斷各車種當日是否有任何駕駛 → 無則回空陣列（不需暫停 = 不營運）
+  4) 對每個分類 cat：
+       a) 聚合該車種所有駕駛的 insertableSlots 裡符合 tripType 的 windows
+          → 得到「可售時段」集合
+       b) mergeIntervals 合併重疊/相鄰
+       c) 取補集 = 暫停段
+       d) 暫停段邊界退讓 1 分鐘（避免與可售時段同分鐘重疊）
+          例：可售 02:27~03:18 → 暫停為 ...~02:26 和 03:19~...
+       e) 若相鄰暫停段間隔 ≤ 60 秒 → 視為連續合併
+  5) 回傳 { "STANDARD_dropoff": [{start,end}, ...], ... }
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 6. 差異比對邏輯（diff-engine.js）                                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  分鐘級集合運算（避免連續段跨午夜等邊界問題）：
+
+  expandToMinuteSet(periods, dayStartUnix)
+    → 把 periods 展成「分鐘序號 Set」（0~1440）
+  mergeMinutesToPeriods(set, dayStartUnix)
+    → 把連續分鐘合回 periods
+
+  diffPausePeriods(prevPeriods, currPeriods, dayStartUnix)
+    - prev 為 null/undefined → isNew=true，added=current（首次）
+    - 否則 currSet - prevSet = addedMinutes
+           prevSet - currSet = removedMinutes
+    - 回傳 { isNew, hasChanges, removed, added, current }
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 7. Slack 通知格式（slack-notifier.js）                              ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  所有通知採「合併版」：相同類型的訊息按分類分區塊，一則 Slack 訊息發完。
+
+  A) 報單警告！（新增或首次偵測）
+       檢測到 N 筆，請至後台設定⌈暫停銷售⌋
+       [ 五人座送機 ]
+       2026-04-05 10:00 ~ 2026-04-05 11:00
+       [ 七人座接機 ]
+       ...
+
+  B) 暫停銷售變更！
+       [ 五人座送機 ]
+       移除：2026-04-05 08:00 ~ 2026-04-05 09:00
+       新增：2026-04-05 10:30 ~ 2026-04-05 11:00
+
+  C) 訂單異動提醒！（既有暫停段內出現新訂單）
+       #訂單id YYYY-MM-DD HH:mm
+
+  D) ⚠️ Slot Monitor 系統異常（錯誤通知）
+
+  分頁：SLACK_MAX_CHARS=3800，超過自動切頁，只有第一頁帶 header
+  節流：SLACK_DELAY_MS=1000（每則間隔 1 秒）
+  上限：MAX_MESSAGES=20 則/次，超過截斷並回報
+  重試：單則失敗會重試一次（sleep 2s），失敗彙總一則錯誤通知回報
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 8. 訂單落在暫停段偵測（order-tracker.js）                           ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+findNewOrdersInPausedZones(reservations, pausePeriodsMap, prevOrderIdsMap, categories)
+
+  對每個分類 cat：
+    prevIds = Set(上次紀錄的 orderIds)
+    for r in reservations:
+      if prevIds 已有 → skip（非新訂單）
+      if r.requiredVehicleType 存在且不等於 cat.vehicleType → skip
+      for p in pauses:
+        if r.reservationTime in [p.start, p.end) → 記錄並 break
+
+  → { "STANDARD_dropoff": [{id, reservationTime}, ...], ... }
+
+  注意：r.requiredVehicleType=null 的訂單會比對到所有車型分類。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 9. Supabase 資料表（兩張）                                          ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+專案 ID：bcvnqsefxksogckbspln
+URL：    https://bcvnqsefxksogckbspln.supabase.co
+
+A) scheduler_config（單列：id=1）
+     id         integer PK (CHECK id=1)
+     config     jsonb    排程參數 JSON
+     updated_at timestamptz
+   - 由 scheduler-web-demo 設定頁面寫入
+   - slot-monitor 啟動時讀取（loadFromSupabase）
+
+B) slot_monitor_state
+     id            bigint PK (IDENTITY)
+     category      text   （如 "STANDARD_dropoff"）
+     date          date
+     pause_periods jsonb  [{start,end}] 陣列（unix timestamp）
+     order_ids     jsonb  當時的訂單 id 清單
+     updated_at    timestamptz
+     UNIQUE (category, date)
+     INDEX ON (date)
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 10. 環境變數完整清單                                                ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+部署時在 Cloud Run 環境變數設定，本地開發放 .env：
+
+  ┌─ Supabase ────────────────────────────────────────────┐
+  SUPABASE_URL               https://bcvnqsefxksogckbspln.supabase.co
+  SUPABASE_KEY               （service role 或 anon key）
+
+  ┌─ Slack ───────────────────────────────────────────────┐
+  SLACK_BOT_TOKEN            （xoxb-...）
+  SLACK_CHANNEL_ID           C0A3RPZD5RP（#提醒測試用）
+                             ↑ 可在設定頁面覆寫（寫回 scheduler_config）
+
+  ┌─ slot-monitor 行為 ───────────────────────────────────┐
+  DAYS_AHEAD                 30
+  SALES_START_HOUR           4   （凌晨 4 點開始算營業）
+  PROCESS_TIMEOUT_MS         300000 (5分鐘)
+
+  ┌─ Zemo API ────────────────────────────────────────────┐
+  ZEMO_API_BASE_URL          https://www.zemotw.com
+  ZEMO_LINE_ID               Ue7184db460b0f2be3e1799c823cec43d
+
+  ┌─ Web UI 登入 ─────────────────────────────────────────┐
+  SESSION_SECRET             zemo-scheduler-secret-2026（可換）
+  AUTH_EMAIL                 （登入帳號）
+  AUTH_PASSWORD              （登入密碼）
+
+  ┌─ 服務模式 ────────────────────────────────────────────┐
+  SERVICE_MODE               "web" → 啟動 web 服務；其他/未設 → slot-monitor 觸發器
+  PORT                       4000（web 本地）/ 8080（Cloud Run）
+
+  ┌─ geo 參數（可由 settings 頁動態寫入 process.env）────┐
+  GEO_RUSH_HOUR_MINUTES           尖峰加成分鐘（預設 10）
+  GEO_LIGHT_HOUR_MINUTES          離峰加成分鐘（預設 -5）
+  GEO_ESTIMATED_SPEED_BANDS       JSON 字串：[{maxDist,speed}, ...]
+  GEO_RUSH_HOUR_MORNING_START     早尖峰開始 HH:MM（預設 06:00）
+  GEO_RUSH_HOUR_MORNING_END       早尖峰結束 HH:MM（預設 10:00）
+  GEO_RUSH_HOUR_EVENING_START     晚尖峰開始 HH:MM（預設 15:00）
+  GEO_RUSH_HOUR_EVENING_END       晚尖峰結束 HH:MM（預設 20:00）
+  GEO_LIGHT_HOUR_EARLY_END        早離峰結束 HH:MM（預設 06:30）
+  GEO_LIGHT_HOUR_LATE_START       晚離峰開始 HH:MM（預設 20:00）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 11. 排程參數（scheduler_config.config JSON 內容）                   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+預設值在 scheduler-web-demo/core/zemo-baseline-config.js：
+
+  數值型：
+    estimatedSpeedKmh                       15
+    estimatedAirportSpeedKmh                30
+    estimatedLightHourAirportSpeedKmh       45
+    estimatedDelaySeconds                   300
+    betweenReservationBufferSeconds         300
+    defaultRangeKm                          205
+    minimumIdleTimeToChargeSeconds          1200 (20分)
+    estimatedTimeToFindChargingStationSeconds 1200 (20分)
+    firstReservationBufferSeconds           3000 (50分) ← 2026-03-31 改為50
+    maxRangeForFirstReservationKm           15 （未使用，保留定義）
+    geoRushHourMinutes                      10
+    geoLightHourMinutes                     -5
+
+  布林旗標：
+    enableDriverLoadBalancing               true
+    enableVehicleTypeRouting                true
+    enableGapFilling                        true
+    enableGapFillingBatteryValidation       true
+    enablePriorityBasedScheduling           true
+    enablePriorityBasedEligibilityCheck     true
+    enableCheckIfReservationAllowed         false
+    sortLowPriorityReservationsByTime       false
+    checkBatteryRange                       true
+
+  分段時速（JSON 字串）：
+    geoEstimatedSpeedBands
+      [{maxDist:3,speed:11.5},{maxDist:10,speed:13},{maxDist:15,speed:21.5},
+       {maxDist:20,speed:25.5},{maxDist:30,speed:37},{maxDist:60,speed:47},
+       {maxDist:80,speed:58},{maxDist:null,speed:62}]
+
+  優先層級（CSV）：
+    highPriorityEnterpriseIdsCsv            ""
+    lowPriorityEnterpriseIdsCsv             "41,42,43,37"
+    reliefDriverIdsCsv                      "218,219,133,11,274,275"
+    secondaryDriverIdsCsv                   "282"
+
+  時段範圍（HH:MM）：
+    rushHourMorningStart / End              "06:00" / "10:00"
+    rushHourEveningStart / End              "15:00" / "20:00"
+    lightHourEarlyEnd / lightHourLateStart  "06:30" / "20:00"
+
+  slackChannelId （設定頁可覆寫）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 12. Zemo API 使用（zemo-client.js）                                 ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+設定來源：scheduler-web-demo/config/zemo-api.json + 環境變數
+
+  POST /api/reservation/records
+    body: { from, to (unix), reservationStatus[], enterpriseIds[], lineId }
+    reservationStatus 預設含：2,4,5,6,10,13
+    （FINISHED/IN_PROGRESS/BOOKED/UNASSIGNED/OUTSOURCED/PENDING_SCHEDULE）
+    → 回 reservationRecords → mapRecordToReservation() 轉演算法格式
+
+  POST /api/user/getUserList
+    body: { userType: 2, lineId }
+    → userList（含 homeLocation、vehicleType、星期幾的 TimeRanges）
+
+  POST /api/driver/getDriversScheduleAndLeave
+    body: { userIds[], from, to (YYYY-MM-DD), lineId }
+    → driversData（含 weeklySchedule、leaves）
+
+  組 driverShifts 優先序（同一駕駛同天可有多班次，如 00:00~06:59 + 19:00~23:59）：
+    1. 有 driversData → buildDriverShiftsFromScheduleAndLeave（扣請假，呼叫 zemo-lib driver.js 的 reduceDriverSchedulesWithLeaves）
+    2. 退回 → mapUserListToDriverShiftsForDate（純用 userList 的 TimeRanges）
+
+  isActiveDriverLike：service=true/1 且 isEnabled!=false 才算可用。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 13. 排程引擎（scheduler-engine.js 的 runSchedule）                  ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+runSchedule(reservations, driverShifts, overrides={}):
+  1) getConfig() 取當前設定
+  2) applyPriorityAndDriverConstantsFromConfig(env)
+       覆寫 zemo-lib/constants/enterprise.js 的 HIGH_/LOW_PRIORITY_ENTERPRISES
+       與 drivers.js 的 RELIEF_/SECONDARY_DRIVER_IDS（僅改 memory，不寫檔）
+  3) 若 enablePriorityBasedScheduling 且有 highPriorityEnterpriseIdsCsv：
+       先把該企業的預約排到前面
+  4) 依 enableVehicleTypeRouting：
+       true  → vehicleRoutingScheduler（先 LARGE 七人座，再 STANDARD）
+       false → proximitySchedulingAlgorithm（單一車型演算法）
+  5) buildDriverDebug(schedule, driverShifts, reservations, options)
+       → 組 debugByDriver：每位駕駛的 trips / timelineItems / insertableSlots
+  6) 回 { schedule, unassignedReservations, summary, debug }
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 14. insertableSlots 計算（insertable-slots.js）                     ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+computeInsertableSlots({ driverId, timelineItems, homeGeo, shiftBeginUnix, shiftEndUnix, options, debugLog }):
+
+  對兩個 DUMMY_TRIPS（送機/接機）分別算每個 gap：
+    - before_first：上班開始到第一趟 busy
+    - between_busy：busy 與 busy 之間
+    - after_last / entire_shift：最後一趟 busy 之後（延伸到 shiftEnd+3h）
+
+  每個 gap 裡面掃描「最早/最晚何時可啟動 dummy trip」：
+    - 起點距離 < 1km → transit 視為 0（近距離免算）
+    - 計算到達機場時間（含尖峰/離峰時段加成）
+    - 電量檢查：做完 dummy 後剩餘電量 ≥ 後續需求
+                （會加回 gap 中剩餘充電時間，1 km/min，扣 20min 找站）
+    - 充電後 transit 延伸 gap：若 nextBusy 是 transit 且前面有 charging，
+      gap 延伸到 transit 之後的下一個 trip（CHANGELOG 有詳細說明）
+
+  window endTime = lastFeasibleTime（非半開區間，顯示精確到分）
+
+  → 回傳 slots[].windows[] { startTime, endTime, gapType, ... }
+     → 在 slot-aggregator 被聚合成可售時段 → 取補集成暫停段
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 15. Web UI 路由（scheduler-web-demo/routes）                        ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+Session 登入（24h cookie），所有路由需 requireAuth。
+
+  GET  /login      登入頁
+  POST /login      帳密驗證（AUTH_EMAIL / AUTH_PASSWORD）
+  GET  /logout     登出
+  GET  /           → /schedule
+
+  /schedule (routes/schedule.js)
+    GET  → 顯示今日（空結果）
+    POST → body.date → fetchReservationsAndShifts → runSchedule
+           → computePausePeriodsForDate → 渲染 schedule.ejs
+           （含 summary/schedule/unassigned/driverMeta/debug/pausePeriodsSummary）
+
+  /settings (routes/settings.js)
+    GET  → 渲染設定頁
+    POST → 更新 scheduler_config（numeric/boolean/speedBands/timeRange/CSV）
+           action=reset 則呼叫 resetToBaseline()
+    POST /send-all-pause-notifications
+           → 手動觸發未來 30 天全量發送（不寫 Supabase state）
+    POST /save-slack-channel
+           → 覆寫 scheduler_config.slackChannelId
+    POST /reset-slot-monitor
+           → clearAllState() 清 slot_monitor_state 全表
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 16. 本地執行指令                                                    ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  # 安裝依賴
+  npm install
+  cd scheduler-web-demo && npm install && cd ..
+  cd slot-monitor && npm install && cd ..
+
+  # slot-monitor 本地跑（dry-run，不發 Slack）
+  node slot-monitor/index.js --dry-run --days=1
+  node slot-monitor/index.js --days=7
+  node slot-monitor/index.js --reset        # 清空 state
+
+  # Web UI
+  node start-web.js
+  → http://localhost:4000
+
+  # debug 腳本（scheduler-web-demo/debug-*.js，單駕駛詳細排程）
+  node scheduler-web-demo/debug-yeh-driver.js
+  node scheduler-web-demo/debug-pan-driver.js
+  node scheduler-web-demo/debug-driver-schedule.js
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 17. Cloud Run 部署                                                  ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+GCP 專案：zemo-h，Region：asia-east1
+
+  # slot-monitor
+  gcloud run deploy slot-monitor --source . --region asia-east1
+
+  # scheduler-web-demo（首次需加 SERVICE_MODE=web）
+  gcloud run deploy scheduler-web-demo --source . --region asia-east1 \
+    --set-env-vars SERVICE_MODE=web
+
+  # 只更新環境變數
+  gcloud run services update slot-monitor --region asia-east1 \
+    --update-env-vars DAYS_AHEAD=30,SLACK_CHANNEL_ID=C0A3RPZD5RP
+
+  # 查日誌
+  gcloud run services logs read slot-monitor --region asia-east1 --limit=50
+
+  # 回滾
+  gcloud run services update-traffic slot-monitor --region asia-east1 \
+    --to-revisions <revision-name>=100
+
+Cloud Scheduler：每 30 分鐘 POST 到 slot-monitor URL 觸發。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 18. 常見判斷邏輯要點                                                ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  ● 當日該車種「無任何駕駛上班」→ 暫停段 = []（不需暫停=不營運）
+  ● 當日該車種「有駕駛但無可接時段」→ 暫停段 = 全日（04:00~23:59）
+  ● 暫停段與可售段會有 1 分鐘空隙，是設計（避免重疊）
+  ● 相鄰暫停段間隔 ≤ 60 秒 → 視為連續合併
+  ● order-tracker 的 r.requiredVehicleType=null 訂單 → 所有車型都比對
+  ● 分班駕駛（同一人多班次）→ proximity 用 composite key（driverId + _idx），
+    最後再合併回原 driverId（CHANGELOG 2026-03-31 修復）
+  ● reservation.js 的 internalReservationTime：機場接機 +20 分鐘 buffer
+    （本地修改，偏離原 zemo-api）
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 19. 需要注意的地雷/特殊點                                           ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+  1) scheduler-web-demo/core/scheduler-engine.js:171 有一個 debugLog 函式
+     會 POST 到 http://127.0.0.1:7267/ingest/68544e9d-...（localhost）。
+     這是開發期的本地 debug ingester，fire-and-forget+catch 靜默。
+     生產環境收不到這個 port → 會連線失敗，但被 .catch(()=>{}) 吞掉，
+     不影響主流程。若要清理可移除 scheduler-engine.js:171-188 與 877 行傳參。
+
+  2) zemo-lib 是從 zemo-api（私有 repo，commit a09d0ad）複製出來的副本，
+     同步更新規則見 scheduler-web-demo/zemo-lib/ZEMO_LIB_SYNC.md。
+     reservation.js 的 +20min buffer 修正（line 381 區域）為本地修改，
+     同步時不要被覆蓋。
+
+  3) env-config.js 的 loadFromSupabase() 在 require 時自動啟動（line 58），
+     是非同步載入。slot-monitor/index.js main() 第一步會 await 一次確保
+     設定載入完成（避免 race condition 讀到空的 baseline）。
+
+  4) slot-monitor 併發保護：server.js 有 running flag（同一實例），但
+     Cloud Run 可能有多實例 → 真正保護在 Supabase state 的 unique(category,date)
+     約束與 upsert onConflict。
+
+  5) 發 Slack 最多 20 則/次，超過會截斷並回報。若單次變更過大，可能漏訊息。
+
+  6) Dockerfile 有 Dockerfile.bak（舊版）放在根目錄，不會被使用但保留在 repo。
+
+  7) SALES_START_HOUR 預設 4，表示 04:00~23:59 才計算暫停段，00:00~04:00
+     不在監控範圍（屬於「前一天營業日」的延伸）。
+
+  8) vehicleRoutingScheduler 會先排 LARGE（七人座專屬訂單），再 gap-fill
+     一般訂單進七人座排程，最後 STANDARD 排剩餘訂單。
+
+
+╔═══════════════════════════════════════════════════════════════════╗
+║ 20. 依賴套件（根 package.json）                                     ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+Node.js >= 20
+
+  @google-cloud/logging-bunyan   GCP 結構化日誌
+  @supabase/supabase-js          Supabase client
+  @turf/helpers                  地理多邊形工具
+  @turf/points-within-polygon    機場範圍判斷
+  axios                          HTTP client
+  bunyan                         logger
+  camelcase-keys-deep            API 命名轉換
+  change-case                    字串格式轉換
+  crypto-js                      加解密
+  dotenv                         .env 載入
+  ejs                            Web UI 模板引擎
+  express                        Web 框架
+  express-session                Session 管理
+  geo-distance                   直線距離計算
+  lodash                         工具函式
+  moment / moment-timezone       時間處理（Asia/Taipei）
+  prom-client                    Prometheus 指標
+
+
+═══════════════════════════════════════════════════════════════════════
+  文件結束。若更動核心邏輯，請同步更新本檔與 CHANGELOG.md。
+═══════════════════════════════════════════════════════════════════════
