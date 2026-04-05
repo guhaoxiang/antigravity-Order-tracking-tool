@@ -55,10 +55,15 @@ function mergeMinutesToPeriods(minuteSet, dayStartUnix) {
 }
 
 /**
- * 比對前後兩組暫停段的差異
+ * 比對前後兩組暫停段的差異（以「整段」為單位）
+ *
+ * 設計理念：後台的每一筆暫停銷售是獨立的設定項，邊界若有移動，就必須
+ * 整段移除再整段新增（分鐘級的 delta 對 operator 沒意義）。
+ * 因此這裡以「起訖分鐘都相同」才判定為同一段；任一邊界改變就視為移除舊段＋新增新段。
+ *
  * @param {Array<{start,end}>|null} prevPeriods - 上次通知的暫停段（null = 首次）
  * @param {Array<{start,end}>} currPeriods - 這次算出的暫停段
- * @param {number} dayStartUnix - 當天 00:00 unix timestamp
+ * @param {number} dayStartUnix - 當天 00:00 unix timestamp（目前未使用，保留簽名相容）
  * @returns {{ isNew: boolean, hasChanges: boolean, removed: Array, added: Array, current: Array }}
  */
 function diffPausePeriods(prevPeriods, currPeriods, dayStartUnix) {
@@ -76,22 +81,21 @@ function diffPausePeriods(prevPeriods, currPeriods, dayStartUnix) {
   }
 
   const prev = prevPeriods || [];
-  const prevSet = expandToMinuteSet(prev, dayStartUnix);
-  const currSet = expandToMinuteSet(curr, dayStartUnix);
 
-  // 計算集合差異
-  const removedMinutes = new Set();
-  for (const m of prevSet) {
-    if (!currSet.has(m)) removedMinutes.add(m);
-  }
+  // 對齊到分鐘邊界後比對（避免秒級抖動造成假差異）
+  const toMinute = (p) => ({
+    start: Math.round(p.start / 60) * 60,
+    end: Math.round(p.end / 60) * 60,
+  });
+  const key = (p) => `${p.start}-${p.end}`;
 
-  const addedMinutes = new Set();
-  for (const m of currSet) {
-    if (!prevSet.has(m)) addedMinutes.add(m);
-  }
+  const prevNorm = prev.map(toMinute);
+  const currNorm = curr.map(toMinute);
+  const prevKeys = new Set(prevNorm.map(key));
+  const currKeys = new Set(currNorm.map(key));
 
-  const removed = mergeMinutesToPeriods(removedMinutes, dayStartUnix);
-  const added = mergeMinutesToPeriods(addedMinutes, dayStartUnix);
+  const removed = prevNorm.filter((p) => !currKeys.has(key(p)));
+  const added = currNorm.filter((p) => !prevKeys.has(key(p)));
 
   return {
     isNew: false,

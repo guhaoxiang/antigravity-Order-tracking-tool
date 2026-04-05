@@ -127,7 +127,7 @@ function computeInsertableSlots({
 }) {
   const insertableSlots = [];
   const timelineSorted = (timelineItems || []).slice().filter(Boolean).sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
-  const busy = timelineSorted
+  const busyRaw = timelineSorted
     .filter((it) => it.type === "trip" || it.type === "transit")
     .map((it) => {
       if (it.type === "transit") {
@@ -163,6 +163,18 @@ function computeInsertableSlots({
     })
     .filter((it) => typeof it._busyStart === "number" && typeof it._busyEnd === "number" && it._busyEnd > it._busyStart)
     .sort((a, b) => a._busyStart - b._busyStart);
+
+  // Drop transits whose timeframe overlaps a trip. Such transits are
+  // pre-pickup positioning moves (e.g. 充電地點 → 機場 before pickup); they start
+  // AFTER the trip's reservationTime and create phantom gaps when sorted by _busyStart.
+  // The trip's own busy window already represents the driver's unavailability.
+  const _tripsForOverlap = busyRaw.filter((it) => it.type === "trip");
+  const busy = busyRaw.filter((it) => {
+    if (it.type !== "transit") return true;
+    return !_tripsForOverlap.some(
+      (tr) => Math.max(it._busyStart, tr._busyStart) < Math.min(it._busyEnd, tr._busyEnd)
+    );
+  });
   const charging = timelineSorted.filter((it) => it.type === "charging");
 
   debugLog("run1", "H1", "insertable-slots.js:init", "driver timeline baseline", {

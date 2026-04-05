@@ -26,10 +26,14 @@ function findNewOrdersInPausedZones(reservations, pausePeriodsMap, prevOrderIdsM
       if (orderVehicle && orderVehicle !== cat.vehicleType) continue;
 
       const t = r.reservationTime;
-      // 檢查是否落入暫停段
+      // 檢查是否落入暫停段（連同暫停段一起回傳，方便通知顯示）
       for (const p of pauses) {
         if (t >= p.start && t < p.end) {
-          newOrdersInPause.push({ id: r.id, reservationTime: t });
+          newOrdersInPause.push({
+            id: r.id,
+            reservationTime: t,
+            pausePeriod: { start: p.start, end: p.end },
+          });
           break;
         }
       }
